@@ -4,21 +4,22 @@ How the owner signs, notarizes, and publishes a release. Contributors do not nee
 
 ## The workflow
 
-1. Add a `## <version>` section to `CHANGELOG.md`. `make notarize` copies it next to the disk image, and the update window shows it as the release notes. The build stops if the section is missing.
-2. Build and publish:
+1. Add a `## <version>` section to `CHANGELOG.md` with the release notes, and commit it. The update window and the GitHub release both show it.
+2. Run:
 
 ```bash
-echo 0.2.2 > VERSION    # set the new version
-make notarize           # build, sign, notarize, staple, write dist/appcast.xml
-make publish            # upload the disk images and the feed to R2
+make release              # patch: 0.2.1 -> 0.2.2
+make release BUMP=minor   # 0.2.1 -> 0.3.0
 ```
 
-3. Commit, tag, push, and create the GitHub release with the same notes:
+`make release` stops if there are uncommitted changes, or if `CHANGELOG.md` has no section for the new version. Then it:
 
-```bash
-git commit -am "Release 0.2.2" && git tag -a v0.2.2 -m v0.2.2 && git push origin HEAD v0.2.2
-gh release create v0.2.2 dist/Rackpulse-0.2.2/Rackpulse-0.2.2.dmg --title "Rackpulse 0.2.2" --notes-file dist/Rackpulse-0.2.2/Rackpulse-0.2.2.md
-```
+1. Bumps `VERSION`, if the current version is already tagged. An untagged version is released as it is, which is also how a failed release is retried.
+2. Runs `make notarize`: builds, signs, notarizes, staples, and writes `dist/appcast.xml` with the release notes.
+3. Runs `make publish`: uploads the disk images, delta updates, and the feed to R2.
+4. Commits `VERSION`, tags `v<version>`, pushes, and creates the GitHub release with the disk image and the notes.
+
+`make notarize` and `make publish` also work on their own, for example to rebuild a release without tagging it.
 
 ## Setup, one time
 
@@ -27,8 +28,9 @@ gh release create v0.2.2 dist/Rackpulse-0.2.2/Rackpulse-0.2.2.dmg --title "Rackp
 | Developer ID Application certificate | Login keychain | Xcode, Settings, Accounts, Manage Certificates |
 | Signing identity | `.env`, `SIGN_ID` (git-ignored) | Copy `.env.example` to `.env`. No quotes around values |
 | Notary credentials | Login keychain, profile named in `.env` as `NOTARY_PROFILE` | `xcrun notarytool store-credentials <profile>` with the Apple ID, the team ID, and an app-specific password |
-| Sparkle update key | Login keychain, account `rackpulse`, with a copy in 1Password | See "Update key" |
-| R2 upload credentials | `.env`: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_TOKEN`, `R2_SECRET` | Cloudflare dashboard, R2, Manage API tokens, with Object Read & Write on the bucket. Copy the token value and the Secret Access Key |
+| Sparkle update key | Login keychain, account named in `.env` as `SPARKLE_ACCOUNT`, with a copy in 1Password | See "Update key" |
+| Public download address | `.env`: `SITE_URL`, the public URL of the release folder, without a trailing slash | The feed and download links are built from it, for example `$SITE_URL/download/Rackpulse.dmg` |
+| R2 upload credentials | `.env`: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_PREFIX` (the folder in the bucket), `R2_TOKEN`, `R2_SECRET` | Cloudflare dashboard, R2, Manage API tokens, with Object Read & Write on the bucket. Copy the token value and the Secret Access Key |
 | Tools | Homebrew | `create-dmg`, `rsvg-convert` |
 
 The upload signs requests with the R2 access key pair. The Access Key ID is the token's ID, so `make publish` asks Cloudflare for it with `R2_TOKEN`. To skip that call, set `R2_ACCESS_KEY_ID` as well.
@@ -40,14 +42,14 @@ Sparkle signs every update with a private key. Installed copies accept only upda
 To create it (done once):
 
 ```bash
-macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account rackpulse
+macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account "$SPARKLE_ACCOUNT"
 ```
 
 To restore it on a new Mac from the 1Password copy:
 
 ```bash
 op read "op://<vault>/<item>/<field>" > /tmp/rackpulse-key
-macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account rackpulse -f /tmp/rackpulse-key
+macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account "$SPARKLE_ACCOUNT" -f /tmp/rackpulse-key
 rm /tmp/rackpulse-key
 ```
 
@@ -66,7 +68,7 @@ The two notary steps take most of the time, usually 2 to 10 minutes each. If a s
 
 ## What goes to R2
 
-Bucket `R2_BUCKET`, prefix `tools/rackpulse`, served at `https://tools-cdn.en3sis.com/tools/rackpulse`.
+Bucket `R2_BUCKET`, folder `R2_PREFIX`, served at `SITE_URL`.
 
 | Path | Source | Cache |
 |---|---|---|
@@ -86,7 +88,7 @@ The Linux agent has its own version in `agent/VERSION` and ships separately from
 echo 0.2.2 > agent/VERSION
 make test-agent       # Go tests
 make agent            # build both binaries, SHA256SUMS and install.sh into dist/agent/<version>
-make publish-agent    # upload to R2 under tools/rackpulse/agent
+make publish-agent    # upload to R2 under $R2_PREFIX/agent
 ```
 
 | Path | Cache |
@@ -99,8 +101,8 @@ When an agent release changes the protocol or adds a feature the app relies on, 
 ## Checks after a release
 
 ```bash
-curl -s https://tools-cdn.en3sis.com/tools/rackpulse/appcast.xml | grep -E "<title>|sparkle:version"
-curl -sI https://tools-cdn.en3sis.com/tools/rackpulse/download/Rackpulse.dmg | head -5
+curl -s "$SITE_URL/appcast.xml" | grep -E "<title>|sparkle:version"
+curl -sI "$SITE_URL/download/Rackpulse.dmg" | head -5
 ```
 
 Then open an installed older version and select Check for Updates.

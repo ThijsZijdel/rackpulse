@@ -231,10 +231,31 @@ struct AgentSystemCard: View {
         .padding(.horizontal, 16)
         .padding(.top, 20)
         .padding(.bottom, 4)
-        .confirmationDialog("Remove the agent from Rackpulse?", isPresented: $confirmingRemove) {
-            Button("Remove", role: .destructive) { store.remove(project.id, server.id) }
-        } message: {
-            Text("Rackpulse stops reading it and deletes its key. The agent keeps running on the server until you run sudo rackpulse-agent uninstall there.")
+
+        if confirmingRemove {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Remove the agent from Rackpulse?").font(.system(size: 13, weight: .semibold))
+                Text("Rackpulse stops reading it and deletes its key. The agent keeps running on the server until you run sudo rackpulse-agent uninstall there.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Cancel") { confirmingRemove = false }
+                        .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("Remove") {
+                        confirmingRemove = false
+                        store.remove(project.id, server.id)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.red)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
         }
 
         if let snapshot = state?.snapshot {

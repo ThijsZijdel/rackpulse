@@ -1,11 +1,12 @@
 -include .env
 
 SIGN_ID ?= -
+BUMP ?= patch
 
-export SIGN_ID NOTARY_PROFILE R2_ACCOUNT_ID R2_BUCKET R2_TOKEN R2_SECRET R2_ACCESS_KEY_ID
+export SIGN_ID DEV_SIGN_ID NOTARY_PROFILE SPARKLE_ACCOUNT SITE_URL R2_ACCOUNT_ID R2_BUCKET R2_PREFIX R2_TOKEN R2_SECRET R2_ACCESS_KEY_ID
 
 .DEFAULT_GOAL := help
-.PHONY: help dev test test-agent stop clean build dmg agent appicon notarize publish publish-agent
+.PHONY: help dev test test-agent stop clean build dmg agent appicon release notarize publish publish-agent
 
 help: ## List the commands
 	@awk 'BEGIN {FS = ":.*## "} /^##@/ {printf "\n%s\n", substr($$0, 5)} /^[a-z0-9-]+:.*## / {printf "  make %-14s %s\n", $$1, $$2}' $(filter-out .env,$(MAKEFILE_LIST))
@@ -42,6 +43,9 @@ appicon: ## Rebuild macos/Resources/AppIcon.icns from AppIcon.svg
 	@scripts/appicon.sh
 
 ##@ Release
+
+release: ## Bump VERSION if it is tagged, notarize, publish, commit, tag, push, and create the GitHub release. BUMP=patch|minor|major
+	@scripts/release.sh $(BUMP)
 
 notarize: ## Sign, notarize and staple dist/Rackpulse-<version>/Rackpulse-<version>.dmg and write dist/appcast.xml
 	@scripts/notarize.sh

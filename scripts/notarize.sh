@@ -1,8 +1,7 @@
 #!/bin/bash
 source "$(dirname "$0")/lib.sh"
 
-profile=${NOTARY_PROFILE:-rackpulse}
-site=${SITE_URL:-https://tools-cdn.en3sis.com/tools/rackpulse}
+require NOTARY_PROFILE SPARKLE_ACCOUNT SITE_URL
 sparkle=macos/.build/artifacts/sparkle/Sparkle/bin
 
 if [ "$SIGN_ID" = "-" ]; then
@@ -12,7 +11,7 @@ fi
 
 submit() {
   local result
-  result=$(xcrun notarytool submit "$1" --keychain-profile "$profile" --wait 2>&1)
+  result=$(xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)
   echo "$result"
   if ! echo "$result" | grep -q "status: Accepted"; then
     echo "Notarization of $1 was not accepted"
@@ -47,7 +46,7 @@ if [ ! -s "$folder/Rackpulse-$release.md" ]; then
   exit 1
 fi
 feed_view
-"$sparkle/generate_appcast" --account rackpulse --embed-release-notes --download-url-prefix "$site/download/" -o dist/appcast.xml "$FEED"
+"$sparkle/generate_appcast" --account "$SPARKLE_ACCOUNT" --embed-release-notes --download-url-prefix "$SITE_URL/download/" -o dist/appcast.xml "$FEED"
 for delta in "$FEED/Rackpulse$release-"*.delta; do
   if [ -f "$delta" ] && [ ! -f "$folder/$(basename "$delta")" ]; then cp "$delta" "$folder/"; fi
 done

@@ -1,8 +1,9 @@
 #!/bin/bash
 source "$(dirname "$0")/lib.sh"
 
-site=${SITE_URL:-https://tools-cdn.en3sis.com/tools/rackpulse}
-prefix=${R2_PREFIX:-tools/rackpulse}
+require SITE_URL R2_PREFIX
+site=$SITE_URL
+prefix=$R2_PREFIX
 
 r2_check
 

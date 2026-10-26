@@ -17,6 +17,16 @@ if [ -f .env ]; then
 fi
 SIGN_ID="${SIGN_ID:--}"
 
+require() {
+  local name
+  for name in "$@"; do
+    if [ -z "${!name:-}" ]; then
+      echo "Set $name in .env. See .env.example"
+      exit 1
+    fi
+  done
+}
+
 release_dir() {
   echo "dist/Rackpulse-$1"
 }
