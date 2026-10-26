@@ -1,0 +1,139 @@
+{
+  "load_balancers": [
+    {
+      "id": 42,
+      "name": "my-resource",
+      "public_net": {
+        "enabled": false,
+        "ipv4": {
+          "id": 42,
+          "ip": "1.2.3.4",
+          "blocked": false,
+          "dns_ptr": "lb1.example.com"
+        },
+        "ipv6": {
+          "id": 42,
+          "ip": "2001:db8::1",
+          "blocked": false,
+          "dns_ptr": "lb1.example.com"
+        }
+      },
+      "private_net": [
+        {
+          "network": 4711,
+          "ip": "10.0.0.2"
+        }
+      ],
+      "location": {
+        "id": 42,
+        "name": "fsn1",
+        "description": "Falkenstein DC Park 1",
+        "country": "DE",
+        "city": "Falkenstein",
+        "latitude": 50.47612,
+        "longitude": 12.370071,
+        "network_zone": "eu-central"
+      },
+      "load_balancer_type": {
+        "id": 1,
+        "name": "lb11",
+        "description": "LB11",
+        "max_connections": 20000,
+        "max_services": 5,
+        "max_targets": 25,
+        "max_assigned_certificates": 10,
+        "deprecated": "2016-01-30T23:50:00Z",
+        "deprecation": {
+          "unavailable_after": "2023-09-01T00:00:00Z",
+          "announced": "2023-06-01T00:00:00Z"
+        },
+        "prices": [
+          {
+            "location": "fsn1",
+            "price_hourly": {
+              "net": "1.0000",
+              "gross": "1.1900"
+            },
+            "price_monthly": {
+              "net": "1.0000",
+              "gross": "1.1900"
+            },
+            "included_traffic": 654321,
+            "price_per_tb_traffic": {
+              "net": "1.0000",
+              "gross": "1.1900"
+            }
+          }
+        ]
+      },
+      "protection": {
+        "delete": false
+      },
+      "labels": {
+        "environment": "prod",
+        "example.com/my": "label",
+        "just-a-key": ""
+      },
+      "created": "2016-01-30T23:55:00Z",
+      "services": [
+        {
+          "protocol": "tcp",
+          "listen_port": 443,
+          "destination_port": 80,
+          "proxyprotocol": false,
+          "health_check": {
+            "protocol": "http",
+            "port": 4711,
+            "interval": 15,
+            "timeout": 10,
+            "retries": 3,
+            "http": {
+              "domain": "example.com",
+              "path": "/",
+              "response": "{\"status\": \"ok\"}",
+              "status_codes": [
+                "2??",
+                "3??"
+              ],
+              "tls": false
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "type": "server",
+          "server": {
+            "id": 80,
+            "ip": "2001:db8::1"
+          },
+          "health_status": [
+            {
+              "listen_port": 443,
+              "status": "healthy",
+              "detail": "unexpected_http_status",
+              "http_status_code": 503
+            }
+          ],
+          "use_private_ip": false
+        }
+      ],
+      "algorithm": {
+        "type": "round_robin"
+      },
+      "outgoing_traffic": null,
+      "ingoing_traffic": null,
+      "included_traffic": 10000
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "per_page": 25,
+      "previous_page": null,
+      "next_page": null,
+      "last_page": 1,
+      "total_entries": 1
+    }
+  }
+}

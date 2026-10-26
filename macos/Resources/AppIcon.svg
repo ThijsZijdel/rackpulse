@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FDFDFE"/>
+      <stop offset="1" stop-color="#C9CDD6"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.25" cy="0" r="0.95">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="0.32" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="0.68" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="unit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A3F4B"/>
+      <stop offset="1" stop-color="#1D2028"/>
+    </linearGradient>
+    <linearGradient id="dot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5BF08A"/>
+      <stop offset="1" stop-color="#1FB45A"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000000" flood-opacity="0.30"/>
+    </filter>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000000" flood-opacity="0.32"/>
+    </filter>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <circle cx="716" cy="716" r="118" fill="#000000"/>
+    </mask>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#fill)" filter="url(#shadow)"/>
+  <g mask="url(#cut)" filter="url(#soft)">
+    <rect x="232" y="262" width="560" height="140" rx="38" fill="url(#unit)"/>
+    <rect x="232" y="434" width="560" height="140" rx="38" fill="url(#unit)"/>
+    <rect x="232" y="606" width="560" height="140" rx="38" fill="url(#unit)"/>
+    <circle cx="310" cy="332" r="22" fill="#34C759"/>
+    <circle cx="310" cy="504" r="22" fill="#34C759"/>
+    <circle cx="310" cy="676" r="22" fill="#FF9F0A"/>
+    <rect x="372" y="322" width="250" height="20" rx="10" fill="#5B6170"/>
+    <rect x="372" y="494" width="250" height="20" rx="10" fill="#5B6170"/>
+    <rect x="372" y="666" width="250" height="20" rx="10" fill="#5B6170"/>
+  </g>
+  <circle cx="716" cy="716" r="88" fill="url(#dot)" filter="url(#soft)"/>
+  <circle cx="716" cy="716" r="88" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="5"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="104" y="104" width="816" height="816" rx="181" fill="none" stroke="url(#rim)" stroke-width="8"/>
+</svg>

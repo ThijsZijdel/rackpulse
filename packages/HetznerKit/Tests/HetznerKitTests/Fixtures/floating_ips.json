@@ -1,0 +1,48 @@
+{
+  "floating_ips": [
+    {
+      "id": 42,
+      "name": "my-resource",
+      "description": "This describes my resource",
+      "ip": "2001:db8::/64",
+      "type": "ipv6",
+      "server": 42,
+      "dns_ptr": [
+        {
+          "ip": "2001:db8::1",
+          "dns_ptr": "server.example.com"
+        }
+      ],
+      "home_location": {
+        "id": 42,
+        "name": "fsn1",
+        "description": "Falkenstein DC Park 1",
+        "country": "DE",
+        "city": "Falkenstein",
+        "latitude": 50.47612,
+        "longitude": 12.370071,
+        "network_zone": "eu-central"
+      },
+      "blocked": false,
+      "protection": {
+        "delete": false
+      },
+      "labels": {
+        "environment": "prod",
+        "example.com/my": "label",
+        "just-a-key": ""
+      },
+      "created": "2016-01-30T23:55:00Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "per_page": 25,
+      "previous_page": null,
+      "next_page": null,
+      "last_page": 1,
+      "total_entries": 1
+    }
+  }
+}

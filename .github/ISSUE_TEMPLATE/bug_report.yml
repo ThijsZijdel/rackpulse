@@ -1,0 +1,38 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options:
+        - App
+        - Agent
+        - Install script
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Rackpulse version (Settings, About), macOS version, and for agent issues the agent version and Linux distribution.
+      placeholder: Rackpulse 0.2.0, macOS 26.1, agent 0.2.0 on Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: For the agent, `journalctl -u rackpulse-agent -n 100`. Remove keys, tokens, and IP addresses first.

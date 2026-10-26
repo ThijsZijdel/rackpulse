@@ -1,0 +1,7 @@
+dist/
+.build/
+.swiftpm/
+.DS_Store
+.env
+.claude/
+*sparkle-key*

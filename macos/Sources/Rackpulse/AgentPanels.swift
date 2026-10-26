@@ -1,0 +1,635 @@
+import HetznerKit
+import SwiftUI
+
+struct AgentNotice: View {
+    enum Kind {
+        case problem, warning, info
+
+        var color: Color {
+            switch self {
+            case .problem: Theme.red
+            case .warning: Theme.orange
+            case .info: Theme.info
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .problem, .warning: "exclamationmark.triangle.fill"
+            case .info: "info.circle.fill"
+            }
+        }
+    }
+
+    let kind: Kind
+    let text: String
+    var action: (title: String, run: () -> Void)?
+    var copy: String?
+
+    @State private var copied = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: kind.icon).font(.system(size: 11)).foregroundStyle(kind.color)
+            Text(text).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if let action {
+                Button(action.title, action: action.run)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+            }
+            if let copy {
+                Button(copied ? "Copied" : "Copy command") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(copy, forType: .string)
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        copied = false
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(copied ? Theme.green : Color.accentColor)
+                .help(copy)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(kind.color.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct AgentOverview: View {
+    let server: Server
+    let project: Project
+    let monitor: Monitor
+    let openSetup: () -> Void
+    let openDocker: () -> Void
+
+    var body: some View {
+        let store = monitor.agents
+        let link = store.link(project.id, server.id)
+        let state = store.state(project.id, server.id)
+        VStack(spacing: 8) {
+            if let problem = state?.problem, let link {
+                AgentNotice(kind: .warning, text: problem.text(link), action: ("Help", openSetup))
+            }
+            if store.needsUpdate(project.id, server.id) {
+                AgentNotice(
+                    kind: .info,
+                    text: "Agent \(AgentStore.latestVersion) is available. Run the update command on the server as root. It keeps the key and settings.",
+                    copy: AgentStore.updateCommand
+                )
+            }
+            if let snapshot = state?.snapshot {
+                tiles(snapshot)
+                ForEach(Array(issues(snapshot).enumerated()), id: \.offset) { _, issue in issue }
+            } else if state?.problem == nil {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Connecting to the agent…").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    private func tiles(_ snapshot: AgentSnapshot) -> some View {
+        let memory = snapshot.memory
+        let fullest = snapshot.disks.max { $0.usedFraction < $1.usedFraction }
+        return HStack(spacing: 8) {
+            tile("Memory", icon: "memorychip", value: Format.percent(memory.usedFraction * 100),
+                 detail: "\(Format.memory(memory.used)) of \(Format.memory(memory.total))", fraction: memory.usedFraction)
+            if let fullest {
+                tile(fullest.mount == "/" ? "Disk" : "Disk \(fullest.mount)", icon: "internaldrive",
+                     value: Format.percent(fullest.usedFraction * 100),
+                     detail: "\(Format.size(fullest.used)) of \(Format.size(fullest.used + fullest.available))",
+                     fraction: fullest.usedFraction)
+            }
+            tile("Up", icon: "power", value: Format.compactDuration(since: snapshot.host.bootTime),
+                 detail: snapshot.host.load.first.map { "load \(String(format: "%.2f", $0))" } ?? "", fraction: nil)
+                .tip("Booted \(snapshot.host.bootTime.formatted(date: .abbreviated, time: .shortened)). \(snapshot.host.os), kernel \(snapshot.host.kernel)")
+        }
+    }
+
+    private func tile(_ title: String, icon: String, value: String, detail: String, fraction: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.secondary)
+                .labelStyle(CompactLabelStyle())
+                .lineLimit(1)
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(fraction.map { $0 >= 0.85 ? UsageBar.color($0) : Theme.text } ?? Theme.text)
+                .lineLimit(1)
+                .rolling(value)
+            if let fraction {
+                UsageBar(fraction: fraction, color: UsageBar.color(fraction)).padding(.vertical, 2)
+            }
+            Text(detail).font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+    }
+
+    private func issues(_ snapshot: AgentSnapshot) -> [AgentNotice] {
+        var result: [AgentNotice] = []
+        for disk in snapshot.disks where disk.readOnly {
+            result.append(AgentNotice(kind: .problem, text: "\(disk.mount) is read-only. The file system may have errors."))
+        }
+        for disk in snapshot.disks where !disk.readOnly && disk.usedFraction >= 0.9 {
+            result.append(AgentNotice(kind: .warning, text: "\(disk.mount) is \(Format.percent(disk.usedFraction * 100)) full."))
+        }
+        for unit in snapshot.system.failedUnits {
+            result.append(AgentNotice(kind: .problem, text: "\(unit) failed. Check it with systemctl status \(unit)."))
+        }
+        let troubled = (snapshot.docker?.containers ?? []).filter { $0.isUnhealthy || $0.isRestartLoop || $0.crashed(within: 3_600, now: .now) }
+        if !troubled.isEmpty {
+            let names = troubled.prefix(2).map(\.name).joined(separator: ", ") + (troubled.count > 2 ? " and \(troubled.count - 2) more" : "")
+            result.append(AgentNotice(kind: .warning, text: "Docker: \(names) need\(troubled.count == 1 ? "s" : "") attention.", action: ("Show", openDocker)))
+        }
+        if snapshot.system.rebootRequired {
+            result.append(AgentNotice(kind: .info, text: "Updates were installed that need a reboot."))
+        }
+        return result
+    }
+}
+
+struct AgentInvitation: View {
+    let server: Server
+    let project: Project
+    let monitor: Monitor
+    let openSetup: () -> Void
+
+    var body: some View {
+        let link = monitor.agents.link(project.id, server.id)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "memorychip").foregroundStyle(Theme.secondary)
+                Text("Memory, disk space and Docker").font(.system(size: 12, weight: .semibold))
+            }
+            Text(link == nil
+                 ? "The Hetzner API does not report what happens inside the server. Install the optional Rackpulse agent to see it here."
+                 : "Agent setup is not finished. Rackpulse is waiting for the agent at \(link?.place ?? "").")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(link == nil ? "Set up agent" : "Continue setup", action: openSetup).controlSize(.small)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+    }
+}
+
+struct AgentSystemCard: View {
+    let server: Server
+    let project: Project
+    let monitor: Monitor
+    let openSetup: () -> Void
+
+    @State private var confirmingRemove = false
+
+    var body: some View {
+        let store = monitor.agents
+        let link = store.link(project.id, server.id)
+        let state = store.state(project.id, server.id)
+        HStack(spacing: 6) {
+            Text("SYSTEM")
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(Theme.secondary)
+            Spacer()
+            if let seen = state?.seen {
+                Text("Agent \(link?.version ?? "") · \(Format.ago(seen, now: .now))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.secondary)
+            }
+            Menu {
+                Button("Setup and firewall help", action: openSetup)
+                Button("Change key…", action: openSetup)
+                Button("Pair again") { store.pairAgain(project.id, server.id) }
+                Divider()
+                Button("Remove agent from Rackpulse…", role: .destructive) { confirmingRemove = true }
+            } label: {
+                Image(systemName: "ellipsis.circle").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 20)
+        .padding(.bottom, 4)
+        .confirmationDialog("Remove the agent from Rackpulse?", isPresented: $confirmingRemove) {
+            Button("Remove", role: .destructive) { store.remove(project.id, server.id) }
+        } message: {
+            Text("Rackpulse stops reading it and deletes its key. The agent keeps running on the server until you run sudo rackpulse-agent uninstall there.")
+        }
+
+        if let snapshot = state?.snapshot {
+            VStack(spacing: 0) {
+                let memory = snapshot.memory
+                usageRow(icon: "memorychip", title: "Memory", fraction: memory.usedFraction,
+                         value: "\(Format.memory(memory.used)) of \(Format.memory(memory.total))", divider: true)
+                if memory.swapTotal > 0 {
+                    usageRow(icon: "arrow.left.arrow.right", title: "Swap", fraction: memory.swapFraction,
+                             value: "\(Format.memory(memory.swapUsed)) of \(Format.memory(memory.swapTotal))", divider: true)
+                }
+                fact("Operating system", snapshot.host.os, divider: true)
+                fact("Kernel", "\(snapshot.host.kernel) · \(snapshot.host.arch)", divider: true)
+                fact("Booted", snapshot.host.bootTime.formatted(date: .abbreviated, time: .shortened), divider: true)
+                fact("Load", snapshot.host.load.map { String(format: "%.2f", $0) }.joined(separator: "  ") + " · \(snapshot.host.cores) cores", divider: false)
+            }
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func usageRow(icon: String, title: String, fraction: Double, value: String, divider: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).foregroundStyle(Theme.secondary).frame(width: 16)
+                Text(title).font(.system(size: 12, weight: .semibold))
+                Spacer(minLength: 6)
+                Text(value).font(.system(size: 12))
+            }
+            UsageBar(fraction: fraction, color: UsageBar.color(fraction))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            if divider { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+        }
+    }
+
+    private func fact(_ title: String, _ value: String, divider: Bool) -> some View {
+        HStack {
+            Text(title).foregroundStyle(Theme.secondary)
+            Spacer(minLength: 8)
+            Text(value).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .overlay(alignment: .bottom) {
+            if divider { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+        }
+    }
+}
+
+struct DockerPanel: View {
+    let docker: AgentSnapshot.Docker
+    let hostMemory: Int64
+    let open: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let error = docker.error {
+                AgentNotice(kind: .warning, text: error)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+            }
+            HStack {
+                SectionTitle("Containers")
+                Spacer()
+                Text(summary).font(.system(size: 11)).foregroundStyle(Theme.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+            if docker.containers.isEmpty {
+                Text(docker.error == nil ? "No containers on this server." : "")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondary)
+                    .padding(.horizontal, 16)
+            }
+            VStack(spacing: 10) {
+                ForEach(groups, id: \.name) { group in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) {
+                            Image(systemName: group.compose ? "square.stack.3d.up" : "shippingbox")
+                                .font(.system(size: 10))
+                            Text(group.name).font(.system(size: 11, weight: .semibold))
+                            if group.compose {
+                                Text("Compose").font(.system(size: 10)).foregroundStyle(Theme.secondary)
+                            }
+                            Spacer()
+                        }
+                        .foregroundStyle(Theme.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 2)
+                        ForEach(Array(group.containers.enumerated()), id: \.element.id) { index, container in
+                            Button { open(container.name) } label: {
+                                ContainerRow(container: container, hostMemory: hostMemory, divider: index < group.containers.count - 1)
+                            }
+                            .buttonStyle(RowButtonStyle())
+                        }
+                    }
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if let disk = docker.disk {
+                HStack {
+                    SectionTitle("Disk usage")
+                    Spacer()
+                    Text("\(Format.size(disk.total)) · \(Format.size(disk.reclaimable)) reclaimable")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 4)
+                VStack(spacing: 0) {
+                    diskRow("Images", disk.images, reclaimable: disk.imagesReclaimable, divider: true)
+                    diskRow("Volumes", disk.volumes, reclaimable: disk.volumesReclaimable, divider: true)
+                    diskRow("Build cache", disk.buildCache, reclaimable: disk.buildCacheReclaimable, divider: true)
+                    diskRow("Container layers", disk.containers, reclaimable: nil, divider: false)
+                }
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+                .padding(.horizontal, 16)
+                Text("Reclaimable space belongs to images and volumes no container uses, and to unused build cache. docker system prune removes it.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+            }
+
+            if !docker.volumes.isEmpty {
+                HStack {
+                    SectionTitle("Volumes")
+                    Spacer()
+                    if let time = docker.volumesTime {
+                        Text("measured \(Format.compactDuration(since: time)) ago").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 4)
+                VStack(spacing: 0) {
+                    let volumes = docker.volumes.sorted { $0.size > $1.size }
+                    ForEach(Array(volumes.enumerated()), id: \.element.id) { index, volume in
+                        HStack(spacing: 8) {
+                            Image(systemName: "cylinder").foregroundStyle(Theme.secondary).frame(width: 14)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(volume.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                                Text(users(volume)).font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 6)
+                            Text(volume.size >= 0 ? Format.size(volume.size) : "-").font(.system(size: 12, weight: .semibold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .overlay(alignment: .bottom) {
+                            if index < volumes.count - 1 { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+                        }
+                    }
+                }
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+                .padding(.horizontal, 16)
+            }
+            Color.clear.frame(height: 4)
+        }
+    }
+
+    private var summary: String {
+        let running = docker.containers.filter(\.isRunning).count
+        return "\(running) of \(docker.containers.count) running"
+    }
+
+    private var groups: [(name: String, compose: Bool, containers: [AgentSnapshot.Container])] {
+        let grouped = Dictionary(grouping: docker.containers) { $0.project ?? "" }
+        return grouped.keys.sorted { ($0.isEmpty ? "~" : $0) < ($1.isEmpty ? "~" : $1) }.map { key in
+            let containers = grouped[key, default: []].sorted { (ContainerRow.rank($0), $0.name) < (ContainerRow.rank($1), $1.name) }
+            return (key.isEmpty ? "Standalone" : key, !key.isEmpty, containers)
+        }
+    }
+
+    private func users(_ volume: AgentSnapshot.Volume) -> String {
+        let names = docker.containers.filter { container in
+            (container.mounts ?? []).contains { $0.name == volume.name }
+        }.map(\.name)
+        if !names.isEmpty { return "Used by \(names.joined(separator: ", "))" }
+        return volume.containers == 0 ? "Not used by any container" : "Used by \(volume.containers) container\(volume.containers == 1 ? "" : "s")"
+    }
+
+    private func diskRow(_ title: String, _ size: Int64, reclaimable: Int64?, divider: Bool) -> some View {
+        HStack {
+            Text(title).font(.system(size: 12))
+            Spacer(minLength: 8)
+            if let reclaimable, reclaimable > 0 {
+                Text("\(Format.size(reclaimable)) reclaimable").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+            }
+            Text(size > 0 ? Format.size(size) : "None")
+                .font(.system(size: 12, weight: size > 0 ? .semibold : .regular))
+                .foregroundStyle(size > 0 ? Theme.text : Theme.secondary)
+                .frame(minWidth: 52, alignment: .trailing)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .overlay(alignment: .bottom) {
+            if divider { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+        }
+    }
+}
+
+struct SectionTitle: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(Theme.secondary)
+    }
+}
+
+struct ContainerRow: View {
+    let container: AgentSnapshot.Container
+    let hostMemory: Int64
+    let divider: Bool
+
+    static func memoryShare(_ container: AgentSnapshot.Container, hostMemory: Int64) -> (fraction: Double, of: String)? {
+        guard let memory = container.memory else { return nil }
+        if let limit = container.memoryLimit, limit > 0 { return (Double(memory) / Double(limit), "of \(Format.memory(limit)) limit") }
+        guard hostMemory > 0 else { return nil }
+        return (Double(memory) / Double(hostMemory), "of \(Format.memory(hostMemory)) server")
+    }
+
+    static func rank(_ container: AgentSnapshot.Container) -> Int {
+        if container.isUnhealthy || container.isRestartLoop || container.crashed(within: 86_400, now: .now) { return 0 }
+        return container.isRunning ? 1 : 2
+    }
+
+    var body: some View {
+        let (color, status) = Self.describe(container)
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Circle().fill(color).frame(width: 7, height: 7)
+                Text(container.name).font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                if let health = container.health {
+                    HealthBadge(health: health)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            Text(([Self.shortImage(container.image), status]).joined(separator: " · "))
+                .font(.system(size: 11))
+                .foregroundStyle(color == Theme.red || color == Theme.orange ? color : Theme.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.leading, 15)
+            if container.isRunning {
+                HStack(spacing: 10) {
+                    meter("CPU", Format.cpu(container.cpu), fraction: (container.cpu ?? 0) / 100)
+                    meter("Memory", container.memory.map { Format.memory($0) } ?? "-",
+                          fraction: Self.memoryShare(container, hostMemory: hostMemory)?.fraction)
+                }
+                .padding(.leading, 15)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if divider { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+        }
+    }
+
+    private func meter(_ title: String, _ value: String, fraction: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(title).foregroundStyle(Theme.secondary)
+                Text(value).fontWeight(.medium)
+            }
+            .font(.system(size: 10))
+            if let fraction {
+                UsageBar(fraction: fraction, color: UsageBar.color(fraction))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    static func shortImage(_ image: String) -> String {
+        image.split(separator: "/").last.map(String.init) ?? image
+    }
+
+    static func describe(_ container: AgentSnapshot.Container) -> (Color, String) {
+        if container.isRestartLoop { return (Theme.orange, "Restarted \(container.restartsLastHour)× in 1 h") }
+        if container.isUnhealthy { return (Theme.red, "Unhealthy") }
+        if container.isRunning {
+            return (Theme.green, container.startedAt.map { "Up \(Format.compactDuration(since: $0))" } ?? "Running")
+        }
+        let since = container.finishedAt.map { " \(Format.compactDuration(since: $0)) ago" } ?? ""
+        if container.crashed(within: 86_400, now: .now) { return (Theme.red, "Exited with code \(container.exitCode)\(since)") }
+        if container.state == "exited" { return (Theme.off, "Stopped\(since)") }
+        return (Theme.off, container.state.capitalized)
+    }
+}
+
+struct HealthBadge: View {
+    let health: String
+
+    var body: some View {
+        let color = health == "healthy" ? Theme.green : health == "unhealthy" ? Theme.red : Theme.orange
+        Text(health.capitalized)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.12), in: Capsule())
+    }
+}
+
+enum ContainerRange: String, CaseIterable, Hashable {
+    case hour = "1h", day = "24h", week = "7d"
+
+    var seconds: TimeInterval {
+        switch self {
+        case .hour: 3_600
+        case .day: 86_400
+        case .week: 604_800
+        }
+    }
+}
+
+struct IconTile: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 24, height: 24)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+struct InfoList<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(spacing: 0) { content }
+            .padding(.top, -1)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
+            .padding(.horizontal, 16)
+    }
+}
+
+struct InfoRow: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    var value: String = ""
+    var detail: String?
+    var monospaced = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            IconTile(symbol: symbol, tint: tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium, design: monospaced ? .monospaced : .default))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .overlay(alignment: .top) {
+            Theme.divider.frame(height: 1).padding(.leading, 44)
+        }
+    }
+}

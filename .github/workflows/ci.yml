@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: App and HetznerKit
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test HetznerKit
+        run: cd packages/HetznerKit && swift test
+      - name: Build the app
+        run: cd macos && swift build
+
+  agent:
+    name: Agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+      - name: Vet and test
+        run: cd agent && go vet ./... && go test ./...
+      - name: Build for Linux
+        run: |
+          cd agent
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null ./...
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./...
