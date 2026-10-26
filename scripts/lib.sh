@@ -25,7 +25,7 @@ feed_view() {
   local file
   rm -rf "$FEED"
   mkdir -p "$FEED"
-  for file in dist/Rackpulse-*/*.dmg dist/Rackpulse-*/*.delta; do
+  for file in dist/Rackpulse-*/*.dmg dist/Rackpulse-*/*.delta dist/Rackpulse-*/*.md; do
     if [ -f "$file" ]; then ln "$file" "$FEED/"; fi
   done
 }

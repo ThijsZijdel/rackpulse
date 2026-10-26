@@ -4,6 +4,11 @@ set -eu
 main() {
   base=${RACKPULSE_AGENT_URL:-https://tools-cdn.en3sis.com/tools/rackpulse/agent}
 
+  if [ "$(uname -s)" != "Linux" ]; then
+    echo "The Rackpulse agent runs on Linux servers. Run this command on the server, not on this computer." >&2
+    exit 1
+  fi
+
   if [ "$(id -u)" -ne 0 ]; then
     echo "Run this script as root, for example: curl -fsSL $base/install.sh | sudo sh -s -- --pair <key>" >&2
     exit 1

@@ -1,0 +1,33 @@
+# Changelog
+
+## 0.2.1
+
+### App
+
+- The Docker tab is easier to scan on servers with many containers. Each container is one compact row with its memory and CPU, Compose projects can be opened and closed and show how many containers run, and stopped containers have their own group.
+- Docker icons for containers, images, volumes, and build cache, and larger text in the Docker views.
+- Charts no longer draw outside their area, and they only show the selected time range.
+- In the uptime bar, hours where the server ran with an alert are green with an orange mark. Notes like "needs a reboot" no longer count as alerts.
+
+### Agent
+
+- The install command stops with a clear message when you run it on a Mac or another system that isn't Linux.
+- The code is reorganized into Go packages. Nothing changes in how the agent works.
+
+## 0.2.0
+
+The first release as Rackpulse, renamed from Rackbar.
+
+### App
+
+- The optional agent: memory, disk space, failed services, Docker containers, and 30 days of uptime recorded on the server.
+- A page for each Docker container, with 7 days of history, ports, volumes, and the last health check.
+- Server pages with Overview, Docker, and Details tabs.
+- Uptime from Hetzner's start and stop history, so the 30-day bar is filled from the start.
+- Production, staging, and development tags per server, also read from a Hetzner `env` label.
+- New alerts for disk space, memory, Docker containers, failed services, pending reboots, and an agent that stops answering.
+- A Change key option for each agent, and an About page with update settings.
+
+### Agent
+
+- First release. It replaces an older `rackbar-agent` and keeps its key and history.

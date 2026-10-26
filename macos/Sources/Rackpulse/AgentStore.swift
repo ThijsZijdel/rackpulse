@@ -101,6 +101,7 @@ final class AgentStore {
     private(set) var links: [String: AgentLink]
     private(set) var states: [String: AgentState] = [:]
     private(set) var uptime: [String: AgentUptime]
+    private(set) var dockerGroups: [String: Bool] = UserDefaults.standard.dictionary(forKey: "dockerGroups") as? [String: Bool] ?? [:]
 
     @ObservationIgnored private var tokens: [String: String] = [:]
     @ObservationIgnored private var clients: [String: AgentClient] = [:]
@@ -350,6 +351,11 @@ final class AgentStore {
         let key = Self.key(project, server)
         guard let link = links[key], let client = client(key, link: link) else { return nil }
         return try? await client.history(since: since)
+    }
+
+    func setDockerGroup(_ id: String, expanded: Bool) {
+        dockerGroups[id] = expanded
+        UserDefaults.standard.set(dockerGroups, forKey: "dockerGroups")
     }
 
     func containerHistory(_ project: UUID, _ server: Int64, name: String, since: Date) async -> ContainerHistory? {

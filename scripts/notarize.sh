@@ -41,8 +41,13 @@ spctl --assess --type open --context context:primary-signature -v "$DMG"
 
 mkdir -p "$folder"
 mv "$DMG" "$image"
+awk -v head="## $release" '$0 == head { found = 1; next } found && /^## / { exit } found' CHANGELOG.md | sed '/./,$!d' >"$folder/Rackpulse-$release.md"
+if [ ! -s "$folder/Rackpulse-$release.md" ]; then
+  echo "CHANGELOG.md has no section for $release. Add one and run make notarize again"
+  exit 1
+fi
 feed_view
-"$sparkle/generate_appcast" --account rackpulse --download-url-prefix "$site/download/" -o dist/appcast.xml "$FEED"
+"$sparkle/generate_appcast" --account rackpulse --embed-release-notes --download-url-prefix "$site/download/" -o dist/appcast.xml "$FEED"
 for delta in "$FEED/Rackpulse$release-"*.delta; do
   if [ -f "$delta" ] && [ ! -f "$folder/$(basename "$delta")" ]; then cp "$delta" "$folder/"; fi
 done

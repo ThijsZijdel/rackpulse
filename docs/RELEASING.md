@@ -4,16 +4,20 @@ How the owner signs, notarizes, and publishes a release. Contributors do not nee
 
 ## The workflow
 
+1. Add a `## <version>` section to `CHANGELOG.md`. `make notarize` copies it next to the disk image, and the update window shows it as the release notes. The build stops if the section is missing.
+2. Build and publish:
+
 ```bash
-echo 0.1.1 > VERSION    # set the new version
+echo 0.2.2 > VERSION    # set the new version
 make notarize           # build, sign, notarize, staple, write dist/appcast.xml
 make publish            # upload the disk images and the feed to R2
 ```
 
-Then commit `VERSION`, tag the release, and push:
+3. Commit, tag, push, and create the GitHub release with the same notes:
 
 ```bash
-git commit -am "release v0.1.1" && git tag -a v0.1.1 -m v0.1.1 && git push origin HEAD v0.1.1
+git commit -am "Release 0.2.2" && git tag -a v0.2.2 -m v0.2.2 && git push origin HEAD v0.2.2
+gh release create v0.2.2 dist/Rackpulse-0.2.2/Rackpulse-0.2.2.dmg --title "Rackpulse 0.2.2" --notes-file dist/Rackpulse-0.2.2/Rackpulse-0.2.2.md
 ```
 
 ## Setup, one time
@@ -79,7 +83,7 @@ Keep the `dist/Rackpulse-<version>/` folders. The feed is built from all of them
 The Linux agent has its own version in `agent/VERSION` and ships separately from the app.
 
 ```bash
-echo 0.1.1 > agent/VERSION
+echo 0.2.2 > agent/VERSION
 make test-agent       # Go tests
 make agent            # build both binaries, SHA256SUMS and install.sh into dist/agent/<version>
 make publish-agent    # upload to R2 under tools/rackpulse/agent

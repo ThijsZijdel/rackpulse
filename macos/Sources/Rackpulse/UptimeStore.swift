@@ -20,7 +20,7 @@ final class UptimeStore {
         let firing = data.alerts.firing
         var changed = false
         for server in data.servers {
-            let alerts = firing.filter { $0.id.hasSuffix(":\(server.id)") }
+            let alerts = firing.filter { $0.id.hasSuffix(":\(server.id)") && $0.severity > .info }
             let state: UptimeState
             if alerts.contains(where: { $0.kind == .serverDown }) {
                 state = .down

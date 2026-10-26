@@ -193,7 +193,8 @@ struct ServerDetailView: View {
     @ViewBuilder
     private var docker: some View {
         if let docker = snapshot?.docker {
-            DockerPanel(docker: docker, hostMemory: snapshot?.memory.total ?? 0, open: openContainer)
+            DockerPanel(docker: docker, hostMemory: snapshot?.memory.total ?? 0, store: monitor.agents,
+                        key: AgentStore.key(project.id, server.id), open: openContainer)
                 .padding(.top, 14)
         }
     }
@@ -347,6 +348,7 @@ struct ServerDetailView: View {
                 }
             }
             .chartXScale(domain: domain)
+            .chartPlotStyle { $0.clipped() }
             .chartXAxis { timeAxis }
         }
     }
@@ -390,6 +392,7 @@ struct ServerDetailView: View {
                 }
             }
             .chartXScale(domain: domain)
+            .chartPlotStyle { $0.clipped() }
             .chartXAxis { timeAxis }
         }
     }
@@ -435,6 +438,7 @@ struct ServerDetailView: View {
                 }
             }
             .chartXScale(domain: domain)
+            .chartPlotStyle { $0.clipped() }
             .chartXAxis { timeAxis }
         }
     }
@@ -443,7 +447,7 @@ struct ServerDetailView: View {
         guard hasAgent else { return }
         let since = Date.now.addingTimeInterval(-range.seconds)
         guard let history = await monitor.agents.history(project.id, server.id, since: since) else { return }
-        memory = history.samples.map { MetricPoint(time: $0.t, value: $0.memory * 100) }
+        memory = history.samples.filter { $0.t >= since }.map { MetricPoint(time: $0.t, value: $0.memory * 100) }
     }
 
     private func hoverMarks(_ time: Date) -> some ChartContent {

@@ -291,7 +291,11 @@ struct AgentSystemCard: View {
 struct DockerPanel: View {
     let docker: AgentSnapshot.Docker
     let hostMemory: Int64
+    let store: AgentStore
+    let key: String
     let open: (String) -> Void
+
+    private static let collapseAbove = 12
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -303,37 +307,51 @@ struct DockerPanel: View {
             HStack {
                 SectionTitle("Containers")
                 Spacer()
-                Text(summary).font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                Text(summary).font(.system(size: 12)).foregroundStyle(Theme.secondary)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
             if docker.containers.isEmpty {
                 Text(docker.error == nil ? "No containers on this server." : "")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundStyle(Theme.secondary)
                     .padding(.horizontal, 16)
             }
             VStack(spacing: 10) {
-                ForEach(groups, id: \.name) { group in
+                ForEach(groups, id: \.id) { group in
+                    let expanded = isExpanded(group)
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 6) {
-                            Image(systemName: group.compose ? "square.stack.3d.up" : "shippingbox")
-                                .font(.system(size: 10))
-                            Text(group.name).font(.system(size: 11, weight: .semibold))
-                            if group.compose {
-                                Text("Compose").font(.system(size: 10)).foregroundStyle(Theme.secondary)
+                        Button { toggle(group, expanded: expanded) } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                                    .frame(width: 12)
+                                Image(systemName: group.symbol).font(.system(size: 12))
+                                Text(group.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.text)
+                                if group.compose {
+                                    Text("Compose").font(.system(size: 11))
+                                }
+                                Spacer(minLength: 6)
+                                if group.troubled > 0 {
+                                    Text("\(group.troubled) need attention").font(.system(size: 12)).foregroundStyle(Theme.orange)
+                                }
+                                Text(group.stopped ? "\(group.containers.count)" : "\(group.running) of \(group.containers.count) running")
+                                    .font(.system(size: 12))
                             }
-                            Spacer()
+                            .foregroundStyle(Theme.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 9)
+                            .contentShape(Rectangle())
                         }
-                        .foregroundStyle(Theme.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 8)
-                        .padding(.bottom, 2)
-                        ForEach(Array(group.containers.enumerated()), id: \.element.id) { index, container in
-                            Button { open(container.name) } label: {
-                                ContainerRow(container: container, hostMemory: hostMemory, divider: index < group.containers.count - 1)
+                        .buttonStyle(.plain)
+                        if expanded {
+                            ForEach(group.containers) { container in
+                                Button { open(container.name) } label: {
+                                    ContainerRow(container: container)
+                                }
+                                .buttonStyle(RowButtonStyle())
                             }
-                            .buttonStyle(RowButtonStyle())
                         }
                     }
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
@@ -346,22 +364,22 @@ struct DockerPanel: View {
                     SectionTitle("Disk usage")
                     Spacer()
                     Text("\(Format.size(disk.total)) · \(Format.size(disk.reclaimable)) reclaimable")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(Theme.secondary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 20)
                 .padding(.bottom, 4)
                 VStack(spacing: 0) {
-                    diskRow("Images", disk.images, reclaimable: disk.imagesReclaimable, divider: true)
-                    diskRow("Volumes", disk.volumes, reclaimable: disk.volumesReclaimable, divider: true)
-                    diskRow("Build cache", disk.buildCache, reclaimable: disk.buildCacheReclaimable, divider: true)
-                    diskRow("Container layers", disk.containers, reclaimable: nil, divider: false)
+                    diskRow("Images", "square.stack.3d.down.right.fill", .blue, disk.images, reclaimable: disk.imagesReclaimable, divider: true)
+                    diskRow("Volumes", "cylinder.fill", .orange, disk.volumes, reclaimable: disk.volumesReclaimable, divider: true)
+                    diskRow("Build cache", "hammer.fill", .gray, disk.buildCache, reclaimable: disk.buildCacheReclaimable, divider: true)
+                    diskRow("Container layers", "square.3.layers.3d", .teal, disk.containers, reclaimable: nil, divider: false)
                 }
                 .background(Theme.card, in: RoundedRectangle(cornerRadius: 9))
                 .padding(.horizontal, 16)
                 Text("Reclaimable space belongs to images and volumes no container uses, and to unused build cache. docker system prune removes it.")
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(Theme.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 16)
@@ -373,7 +391,7 @@ struct DockerPanel: View {
                     SectionTitle("Volumes")
                     Spacer()
                     if let time = docker.volumesTime {
-                        Text("measured \(Format.compactDuration(since: time)) ago").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                        Text("measured \(Format.compactDuration(since: time)) ago").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -383,13 +401,13 @@ struct DockerPanel: View {
                     let volumes = docker.volumes.sorted { $0.size > $1.size }
                     ForEach(Array(volumes.enumerated()), id: \.element.id) { index, volume in
                         HStack(spacing: 8) {
-                            Image(systemName: "cylinder").foregroundStyle(Theme.secondary).frame(width: 14)
+                            IconTile(symbol: "cylinder.fill", tint: .orange, size: 22)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(volume.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                                Text(users(volume)).font(.system(size: 10)).foregroundStyle(Theme.secondary).lineLimit(1)
+                                Text(volume.name).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                                Text(users(volume)).font(.system(size: 11)).foregroundStyle(Theme.secondary).lineLimit(1)
                             }
                             Spacer(minLength: 6)
-                            Text(volume.size >= 0 ? Format.size(volume.size) : "-").font(.system(size: 12, weight: .semibold))
+                            Text(volume.size >= 0 ? Format.size(volume.size) : "-").font(.system(size: 13, weight: .semibold))
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
@@ -410,12 +428,46 @@ struct DockerPanel: View {
         return "\(running) of \(docker.containers.count) running"
     }
 
-    private var groups: [(name: String, compose: Bool, containers: [AgentSnapshot.Container])] {
-        let grouped = Dictionary(grouping: docker.containers) { $0.project ?? "" }
-        return grouped.keys.sorted { ($0.isEmpty ? "~" : $0) < ($1.isEmpty ? "~" : $1) }.map { key in
-            let containers = grouped[key, default: []].sorted { (ContainerRow.rank($0), $0.name) < (ContainerRow.rank($1), $1.name) }
-            return (key.isEmpty ? "Standalone" : key, !key.isEmpty, containers)
+    private struct Group: Identifiable {
+        let id: String
+        let name: String
+        let compose: Bool
+        let stopped: Bool
+        let containers: [AgentSnapshot.Container]
+
+        var running: Int { containers.filter(\.isRunning).count }
+        var troubled: Int { containers.filter { ContainerRow.rank($0) == 0 }.count }
+        var symbol: String { stopped ? "stop.circle" : compose ? "square.stack.3d.up" : "shippingbox" }
+    }
+
+    private var groups: [Group] {
+        let stopped = docker.containers.filter { !$0.isRunning && ContainerRow.rank($0) != 0 }
+        let active = docker.containers.filter { $0.isRunning || ContainerRow.rank($0) == 0 }
+        let grouped = Dictionary(grouping: active) { $0.project ?? "" }
+        var result = grouped.keys.sorted { ($0.isEmpty ? "~" : $0) < ($1.isEmpty ? "~" : $1) }.map { name in
+            Group(
+                id: "project:\(name)",
+                name: name.isEmpty ? "Standalone" : name,
+                compose: !name.isEmpty,
+                stopped: false,
+                containers: grouped[name, default: []].sorted { (ContainerRow.rank($0), $0.name) < (ContainerRow.rank($1), $1.name) }
+            )
         }
+        if !stopped.isEmpty {
+            result.append(Group(id: "stopped", name: "Stopped", compose: false, stopped: true, containers: stopped.sorted { $0.name < $1.name }))
+        }
+        return result
+    }
+
+    private func isExpanded(_ group: Group) -> Bool {
+        if let choice = store.dockerGroups["\(key)|\(group.id)"] { return choice }
+        if group.troubled > 0 { return true }
+        if group.stopped { return false }
+        return docker.containers.count <= Self.collapseAbove
+    }
+
+    private func toggle(_ group: Group, expanded: Bool) {
+        store.setDockerGroup("\(key)|\(group.id)", expanded: !expanded)
     }
 
     private func users(_ volume: AgentSnapshot.Volume) -> String {
@@ -426,15 +478,16 @@ struct DockerPanel: View {
         return volume.containers == 0 ? "Not used by any container" : "Used by \(volume.containers) container\(volume.containers == 1 ? "" : "s")"
     }
 
-    private func diskRow(_ title: String, _ size: Int64, reclaimable: Int64?, divider: Bool) -> some View {
-        HStack {
-            Text(title).font(.system(size: 12))
+    private func diskRow(_ title: String, _ symbol: String, _ tint: Color, _ size: Int64, reclaimable: Int64?, divider: Bool) -> some View {
+        HStack(spacing: 10) {
+            IconTile(symbol: symbol, tint: tint, size: 22)
+            Text(title).font(.system(size: 13))
             Spacer(minLength: 8)
             if let reclaimable, reclaimable > 0 {
-                Text("\(Format.size(reclaimable)) reclaimable").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                Text("\(Format.size(reclaimable)) reclaimable").font(.system(size: 12)).foregroundStyle(Theme.secondary)
             }
             Text(size > 0 ? Format.size(size) : "None")
-                .font(.system(size: 12, weight: size > 0 ? .semibold : .regular))
+                .font(.system(size: 13, weight: size > 0 ? .semibold : .regular))
                 .foregroundStyle(size > 0 ? Theme.text : Theme.secondary)
                 .frame(minWidth: 52, alignment: .trailing)
         }
@@ -463,8 +516,6 @@ struct SectionTitle: View {
 
 struct ContainerRow: View {
     let container: AgentSnapshot.Container
-    let hostMemory: Int64
-    let divider: Bool
 
     static func memoryShare(_ container: AgentSnapshot.Container, hostMemory: Int64) -> (fraction: Double, of: String)? {
         guard let memory = container.memory else { return nil }
@@ -473,58 +524,47 @@ struct ContainerRow: View {
         return (Double(memory) / Double(hostMemory), "of \(Format.memory(hostMemory)) server")
     }
 
-    static func rank(_ container: AgentSnapshot.Container) -> Int {
+    nonisolated static func rank(_ container: AgentSnapshot.Container) -> Int {
         if container.isUnhealthy || container.isRestartLoop || container.crashed(within: 86_400, now: .now) { return 0 }
         return container.isRunning ? 1 : 2
     }
 
     var body: some View {
         let (color, status) = Self.describe(container)
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(container.name).font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-                if let health = container.health {
-                    HealthBadge(health: health)
+        HStack(spacing: 10) {
+            IconTile(symbol: "shippingbox.fill", tint: color, size: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(container.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    if let health = container.health, health != "healthy" {
+                        HealthBadge(health: health)
+                    }
                 }
-                Spacer(minLength: 6)
-                Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                Text(([Self.shortImage(container.image), status]).joined(separator: " · "))
+                    .font(.system(size: 12))
+                    .foregroundStyle(color == Theme.red || color == Theme.orange ? color : Theme.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Text(([Self.shortImage(container.image), status]).joined(separator: " · "))
-                .font(.system(size: 11))
-                .foregroundStyle(color == Theme.red || color == Theme.orange ? color : Theme.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.leading, 15)
+            Spacer(minLength: 8)
             if container.isRunning {
-                HStack(spacing: 10) {
-                    meter("CPU", Format.cpu(container.cpu), fraction: (container.cpu ?? 0) / 100)
-                    meter("Memory", container.memory.map { Format.memory($0) } ?? "-",
-                          fraction: Self.memoryShare(container, hostMemory: hostMemory)?.fraction)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(container.memory.map { Format.memory($0) } ?? "")
+                        .font(.system(size: 12, weight: .medium))
+                    if let cpu = container.cpu {
+                        Text("\(Format.cpu(cpu)) CPU").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                    }
                 }
-                .padding(.leading, 15)
+                .monospacedDigit()
             }
+            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .contentShape(Rectangle())
-        .overlay(alignment: .bottom) {
-            if divider { Theme.divider.frame(height: 1).padding(.horizontal, 10) }
+        .overlay(alignment: .top) {
+            Theme.divider.frame(height: 1).padding(.leading, 42).padding(.trailing, 10)
         }
-    }
-
-    private func meter(_ title: String, _ value: String, fraction: Double?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                Text(title).foregroundStyle(Theme.secondary)
-                Text(value).fontWeight(.medium)
-            }
-            .font(.system(size: 10))
-            if let fraction {
-                UsageBar(fraction: fraction, color: UsageBar.color(fraction))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     static func shortImage(_ image: String) -> String {
@@ -550,7 +590,7 @@ struct HealthBadge: View {
     var body: some View {
         let color = health == "healthy" ? Theme.green : health == "unhealthy" ? Theme.red : Theme.orange
         Text(health.capitalized)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -573,13 +613,14 @@ enum ContainerRange: String, CaseIterable, Hashable {
 struct IconTile: View {
     let symbol: String
     let tint: Color
+    var size: CGFloat = 24
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 11, weight: .semibold))
+            .font(.system(size: size * 0.46, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(tint.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .frame(width: size, height: size)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: size / 4, style: .continuous))
     }
 }
 
@@ -608,7 +649,7 @@ struct InfoRow: View {
             IconTile(symbol: symbol, tint: tint)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 12, weight: .medium, design: monospaced ? .monospaced : .default))
+                    .font(.system(size: 13, weight: .medium, design: monospaced ? .monospaced : .default))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
@@ -622,7 +663,7 @@ struct InfoRow: View {
             }
             Spacer(minLength: 8)
             Text(value)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(Theme.secondary)
                 .lineLimit(1)
         }

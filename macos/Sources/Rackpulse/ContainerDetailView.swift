@@ -102,7 +102,7 @@ struct ContainerDetailView: View {
             IconTile(symbol: icon, tint: tint)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(title).font(.system(size: 12, weight: .semibold))
+                    Text(title).font(.system(size: 13, weight: .semibold))
                     Spacer(minLength: 6)
                     Text(value).font(.system(size: 13, weight: .semibold)).rolling(value)
                     Text(detail).font(.system(size: 11)).foregroundStyle(Theme.secondary)
@@ -246,12 +246,17 @@ struct ContainerDetailView: View {
         AgentSnapshot.Container.stopSignals.contains(container.exitCode)
     }
 
+    private var samples: [ContainerHistory.Sample] {
+        let start = Date.now.addingTimeInterval(-range.seconds)
+        return (history?.samples ?? []).filter { $0.t >= start }
+    }
+
     private var cpuPoints: [MetricPoint] {
-        (history?.samples ?? []).compactMap { sample in sample.cpu.map { MetricPoint(time: sample.t, value: $0) } }
+        samples.compactMap { sample in sample.cpu.map { MetricPoint(time: sample.t, value: $0) } }
     }
 
     private var memoryPoints: [MetricPoint] {
-        (history?.samples ?? []).compactMap { sample in sample.memory.map { MetricPoint(time: sample.t, value: Double($0)) } }
+        samples.compactMap { sample in sample.memory.map { MetricPoint(time: sample.t, value: Double($0)) } }
     }
 
     private func chart(_ title: String, icon: String, points: [MetricPoint], format: @escaping (Double?) -> String, domain: ClosedRange<Double>?) -> some View {
@@ -288,6 +293,7 @@ struct ContainerDetailView: View {
                     }
                     .chartXSelection(value: $hover)
                     .chartXScale(domain: start...end)
+                    .chartPlotStyle { $0.clipped() }
                     .chartYScale(domain: domain ?? 0...max(1, (points.map(\.value).max() ?? 1) * 1.15))
                     .chartYAxis {
                         AxisMarks(position: .leading, values: .automatic(desiredCount: 2)) { value in

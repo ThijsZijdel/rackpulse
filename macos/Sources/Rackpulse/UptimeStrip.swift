@@ -12,6 +12,12 @@ struct UptimeStrip: View {
             ForEach(states.indices, id: \.self) { index in
                 RoundedRectangle(cornerRadius: min(2, height / 4))
                     .fill(Self.color(states[index]))
+                    .overlay(alignment: .top) {
+                        if states[index] == .alert {
+                            Theme.orange.frame(height: max(2, height / 5))
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: min(2, height / 4)))
                     .opacity(hovered == nil || hovered == index ? 1 : 0.55)
                     .frame(height: height)
             }
@@ -40,8 +46,7 @@ struct UptimeStrip: View {
 
     static func color(_ state: UptimeState?) -> Color {
         switch state {
-        case .up: Theme.green
-        case .alert: Theme.orange
+        case .up, .alert: Theme.green
         case .down: Theme.red
         case .off: Theme.off.opacity(0.6)
         case nil: Theme.card
@@ -150,7 +155,7 @@ struct UptimeCard: View {
         let source = hasAgent
             ? "From the agent on the server, which records every minute the server runs."
             : "From Hetzner's start and stop history and Rackpulse's own checks. A crash inside the server is not visible to Hetzner; the Rackpulse agent records it."
-        return coverage + source + " Stops you made through Hetzner show in grey. Hover the bars for details."
+        return coverage + source + " Stops you made through Hetzner show in grey, and an orange mark means the server was running but had an alert. Hover the bars for details."
     }
 
     private func describe(_ entry: UptimeEntry?) -> String {
