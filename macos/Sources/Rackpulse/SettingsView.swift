@@ -153,7 +153,7 @@ private struct GeneralPage: View {
                     get: { settings.value.readout },
                     set: { settings.value.readout = $0 }
                 )) {
-                    ForEach(MenuBarReadout.allCases) { Text($0.title).tag($0) }
+                    ForEach(MenuBarReadout.allCases.filter { settings.value.showsCosts || $0 != .cost }) { Text($0.title).tag($0) }
                 }
             } header: {
                 Text("Menu bar")
@@ -202,7 +202,14 @@ private struct GeneralPage: View {
                 ))
             }
 
-            Section("Costs") {
+            Section {
+                Toggle("Show cost estimates", isOn: Binding(
+                    get: { settings.value.showsCosts },
+                    set: { value in
+                        settings.value.showsCosts = value
+                        if !value && settings.value.readout == .cost { settings.value.readout = .none }
+                    }
+                ))
                 Picker("Prices", selection: Binding(
                     get: { settings.value.priceKind },
                     set: { settings.value.priceKind = $0 }
@@ -210,6 +217,12 @@ private struct GeneralPage: View {
                     Text("Without VAT").tag(PriceKind.net)
                     Text("With VAT").tag(PriceKind.gross)
                 }
+                .disabled(!settings.value.showsCosts)
+            } header: {
+                Text("Costs")
+            } footer: {
+                Text("When off, Rackpulse hides the Costs tab and all cost amounts, and stops budget alerts.")
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -261,7 +274,7 @@ private struct AlertsPage: View {
                 Text("These rules apply to every server. To give one server its own thresholds or mute it, open its project page here, or use the Alerts button on the server's page.")
                     .foregroundStyle(.secondary)
             }
-            ForEach(RuleKind.allCases.filter { $0 != .storageBox && !$0.needsAgent }, id: \.self) { kind in
+            ForEach(RuleKind.allCases.filter { $0 != .storageBox && !$0.needsAgent && (settings.value.showsCosts || $0 != .budget) }, id: \.self) { kind in
                 Section {
                     RuleEditor(kind: kind, rule: ruleBinding(kind))
                 }
@@ -425,6 +438,49 @@ private struct ServerEnvironmentsSection: View {
     }
 }
 
+private struct ServerPricesSection: View {
+    let project: Project
+    let servers: [Server]
+    let settings: SettingsStore
+
+    var body: some View {
+        Section {
+            if servers.isEmpty {
+                Text("Servers appear here after the first poll.").foregroundStyle(.secondary)
+            }
+            ForEach(servers) { server in
+                HStack {
+                    TextField(value: Binding(
+                        get: { settings.price(project: project.id, server: server.id) },
+                        set: { settings.setPrice($0, project: project.id, server: server.id) }
+                    ), format: .number.precision(.fractionLength(0...2)), prompt: Text(listPrice(server))) {
+                        Label(server.name, systemImage: "server.rack")
+                    }
+                    if settings.price(project: project.id, server: server.id) != nil {
+                        Button {
+                            settings.setPrice(nil, project: project.id, server: server.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Use the list price")
+                    }
+                }
+            }
+        } header: {
+            Text("Server prices")
+        } footer: {
+            Text("Enter the monthly price you pay, without VAT, for a server that is not on Hetzner's current list price. Rackpulse uses it for costs, the forecast and the budget alert. Leave empty to use the list price, shown in grey.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func listPrice(_ server: Server) -> String {
+        guard let price = server.serverType.prices.price(at: server.location.name)?.priceMonthly.net else { return "List price" }
+        return price.formatted(.number.precision(.fractionLength(2)))
+    }
+}
+
 private struct ServerAlertsSection: View {
     let project: Project
     let servers: [Server]
@@ -559,16 +615,24 @@ private struct ProjectForm: View {
                 .font(.headline)
             }
 
-            Section {
-                TextField("Monthly budget", value: Binding(
-                    get: { project.budget },
-                    set: { value in store.update(project.id) { $0.budget = value.flatMap { $0 > 0 ? $0 : nil } } }
-                ), format: .number.precision(.fractionLength(0...2)), prompt: Text("None"))
-            } header: {
-                Text("Costs")
-            } footer: {
-                Text("Rackpulse shows this on the Costs tab and alerts you when the month's forecast goes above it. Amounts are in the currency of your Hetzner prices, without VAT.")
-                    .foregroundStyle(.secondary)
+            if settings.value.showsCosts {
+                Section {
+                    TextField("Monthly budget", value: Binding(
+                        get: { project.budget },
+                        set: { value in store.update(project.id) { $0.budget = value.flatMap { $0 > 0 ? $0 : nil } } }
+                    ), format: .number.precision(.fractionLength(0...2)), prompt: Text("None"))
+                } header: {
+                    Text("Costs")
+                } footer: {
+                    Text("Rackpulse shows this on the Costs tab and alerts you when the month's forecast goes above it. Amounts are in the currency of your Hetzner prices, without VAT.")
+                        .foregroundStyle(.secondary)
+                }
+
+                ServerPricesSection(project: project, servers: servers, settings: settings)
+            } else {
+                Section("Costs") {
+                    Text("Cost estimates are off. Turn them on in General.").foregroundStyle(.secondary)
+                }
             }
 
             ServerEnvironmentsSection(project: project, servers: servers, settings: settings)

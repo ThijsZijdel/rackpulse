@@ -34,6 +34,7 @@ struct PollContext {
     let now: Date
     let pricing: Pricing?
     let priceKind: PriceKind
+    let serverPrices: [Int64: Decimal]
     let alertSettings: AlertSettings
     var agents: [Int64: AgentReport] = [:]
 }
@@ -131,7 +132,8 @@ final class ProjectPoller {
             }
 
             let costForecast = resourcesRefreshed && context.pricing != nil
-                ? CostEstimator(pricing: context.pricing, priceKind: context.priceKind).estimate(next.inventory, now: now).forecast
+                ? CostEstimator(pricing: context.pricing, priceKind: context.priceKind, serverPrices: context.serverPrices)
+                    .estimate(next.inventory, now: now).forecast
                 : nil
             let snapshot = PollSnapshot(
                 time: now,

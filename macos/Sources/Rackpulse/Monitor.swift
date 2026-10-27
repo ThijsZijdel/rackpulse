@@ -133,8 +133,12 @@ final class Monitor {
     }
 
     func costReport(for id: UUID) -> CostReport? {
-        guard pricing != nil, let data = pollers[id]?.data, data.resourcesFetched != nil else { return nil }
-        return CostEstimator(pricing: pricing, priceKind: settings.value.priceKind).estimate(data.inventory, now: .now)
+        guard settings.value.showsCosts, pricing != nil, let data = pollers[id]?.data, data.resourcesFetched != nil else { return nil }
+        return costEstimator(for: id).estimate(data.inventory, now: .now)
+    }
+
+    func costEstimator(for id: UUID) -> CostEstimator {
+        CostEstimator(pricing: pricing, priceKind: settings.value.priceKind, serverPrices: settings.value.serverPrices(for: id))
     }
 
     func projectChanged() {
@@ -217,7 +221,8 @@ final class Monitor {
     private func poll(_ project: Project, _ poller: ProjectPoller, now: Date = .now) async {
         let reports = await agents.poll(project.id, servers: poller.data.servers)
         let context = PollContext(
-            now: now, pricing: pricing, priceKind: settings.value.priceKind,
+            now: now, pricing: settings.value.showsCosts ? pricing : nil, priceKind: settings.value.priceKind,
+            serverPrices: settings.value.serverPrices(for: project.id),
             alertSettings: settings.value.alertSettings(for: project), agents: reports
         )
         for event in await poller.refresh(context) {

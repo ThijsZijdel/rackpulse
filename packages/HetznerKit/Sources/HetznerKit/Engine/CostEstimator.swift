@@ -36,6 +36,7 @@ public struct CostLine: Sendable, Hashable, Identifiable {
     public let monthToDate: Decimal
     public let forecast: Decimal
     public let idleReason: String?
+    public var userPrice = false
 
     public var id: String { "\(kind.rawValue):\(resourceID)" }
 }
@@ -56,11 +57,13 @@ public struct CostReport: Sendable, Hashable {
 public struct CostEstimator: Sendable {
     public let pricing: Pricing?
     public let priceKind: PriceKind
+    public let serverPrices: [Int64: Decimal]
     public let calendar: Calendar
 
-    public init(pricing: Pricing?, priceKind: PriceKind = .net, timeZone: TimeZone = .gmt) {
+    public init(pricing: Pricing?, priceKind: PriceKind = .net, serverPrices: [Int64: Decimal] = [:], timeZone: TimeZone = .gmt) {
         self.pricing = pricing
         self.priceKind = priceKind
+        self.serverPrices = serverPrices
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         self.calendar = calendar
@@ -71,12 +74,17 @@ public struct CostEstimator: Sendable {
         var billing = Billing(month: month, now: now, kind: priceKind)
 
         for server in inventory.servers {
-            let price = server.serverType.prices.price(at: server.location.name)
-                ?? pricing?.serverTypes.first { $0.name == server.serverType.name }?.prices.price(at: server.location.name)
             let idle = server.status == .off ? "Stopped, still billed" : nil
-            guard let line = billing.hourly(.server, server.id, server.name, price, since: server.created, idle: idle) else {
-                billing.missing.append(server.name)
-                continue
+            let line: CostLine
+            if let monthly = userPrice(server.id) {
+                line = billing.prorated(.server, server.id, server.name, monthly: monthly, since: server.created,
+                                        idle: idle, userPrice: true)
+            } else {
+                guard let listed = billing.hourly(.server, server.id, server.name, listPrice(server), since: server.created, idle: idle) else {
+                    billing.missing.append(server.name)
+                    continue
+                }
+                line = listed
             }
             if server.backupsEnabled, let percentage = pricing?.serverBackupPercentage {
                 let share = percentage / 100
@@ -86,7 +94,8 @@ public struct CostEstimator: Sendable {
                     name: server.name,
                     monthToDate: line.monthToDate * share,
                     forecast: line.forecast * share,
-                    idleReason: idle
+                    idleReason: idle,
+                    userPrice: line.userPrice
                 ))
             }
         }
@@ -142,6 +151,17 @@ public struct CostEstimator: Sendable {
             missingPrices: billing.missing
         )
     }
+
+    public func listPrice(_ server: Server) -> LocationPrice? {
+        server.serverType.prices.price(at: server.location.name)
+            ?? pricing?.serverTypes.first { $0.name == server.serverType.name }?.prices.price(at: server.location.name)
+    }
+
+    public func userPrice(_ server: Int64) -> Decimal? {
+        guard let net = serverPrices[server], net > 0 else { return nil }
+        guard priceKind == .gross, let vat = pricing?.vatRate else { return net }
+        return net * (1 + vat / 100)
+    }
 }
 
 private struct Billing {
@@ -175,16 +195,18 @@ private struct Billing {
         return add(lineKind, id, name, monthly: monthly, since: created, idle: idle) { hourly * $0 }
     }
 
+    @discardableResult
     mutating func prorated(
         _ lineKind: CostLine.Kind,
         _ id: Int64,
         _ name: String,
         monthly: Decimal,
         since created: Date,
-        idle: String?
-    ) {
+        idle: String?,
+        userPrice: Bool = false
+    ) -> CostLine {
         let hours = hoursInMonth
-        add(lineKind, id, name, monthly: monthly, since: created, idle: idle) { monthly * $0 / hours }
+        return add(lineKind, id, name, monthly: monthly, since: created, idle: idle, userPrice: userPrice) { monthly * $0 / hours }
     }
 
     @discardableResult
@@ -195,6 +217,7 @@ private struct Billing {
         monthly: Decimal,
         since created: Date,
         idle: String?,
+        userPrice: Bool = false,
         cost: (Decimal) -> Decimal
     ) -> CostLine {
         let start = max(created, month.start)
@@ -204,7 +227,8 @@ private struct Billing {
             name: name,
             monthToDate: min(cost(billedHours(from: start, to: now)), monthly),
             forecast: min(cost(billedHours(from: start, to: month.end)), monthly),
-            idleReason: idle
+            idleReason: idle,
+            userPrice: userPrice
         )
         lines.append(line)
         return line
