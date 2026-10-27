@@ -534,7 +534,30 @@ struct ServerDetailView: View {
             fact("Firewall", firewallText, icon: "shield.lefthalf.filled")
             fact(lastActionTitle, lastActionText, icon: "bolt")
             fact("Protection", protectionText, icon: "lock", accent: server.protection.delete ? Theme.green : nil)
+            if let report = monitor.costReport(for: project.id) {
+                let estimator = monitor.costEstimator(for: project.id)
+                let user = estimator.userPrice(server.id)
+                let monthly = user ?? estimator.listPrice(server)?.priceMonthly.value(report.priceKind)
+                let spent = report.lines.filter { ($0.kind == .server || $0.kind == .backup) && $0.resourceID == server.id }
+                    .reduce(Decimal(0)) { $0 + $1.monthToDate }
+                priceFact(user == nil ? "List price" : "Your price", monthly.map { "\(money($0, report.currency)) a month" } ?? "Unknown",
+                          help: user == nil
+                              ? "Hetzner's list price for this server type. Click to enter the price you pay."
+                              : "The monthly price you entered. Click to change or clear it.")
+                priceFact("Cost this month", money(spent, report.currency),
+                          help: "Estimated cost of this server and its backups since the start of the month.")
+            }
         }
+    }
+
+    private func priceFact(_ title: String, _ value: String, help: String) -> some View {
+        Button {
+            monitor.settings.requestedPage = .project(project.id)
+            app.showSettings()
+        } label: {
+            fact(title, value, icon: "banknote", help: help).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var disks: some View {

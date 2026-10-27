@@ -10,6 +10,7 @@ struct CostSummary {
     let budget: Decimal?
     let idle: [CostLine]
     let missing: [String]
+    let hasUserPrices: Bool
 
     init(_ reports: [CostReport], budget: Decimal?) {
         currency = reports.first?.currency ?? "EUR"
@@ -20,6 +21,7 @@ struct CostSummary {
         self.budget = budget
         idle = reports.flatMap { $0.lines.filter { $0.idleReason != nil && $0.kind != .backup } }
         missing = reports.flatMap(\.missingPrices)
+        hasUserPrices = reports.contains { $0.lines.contains(where: \.userPrice) }
     }
 }
 
@@ -195,6 +197,9 @@ struct CostsView: View {
     private func disclaimer(_ summary: CostSummary) -> String {
         let vat = summary.priceKind == .gross ? "with VAT" : "without VAT"
         var text = "Estimated from list prices × hours each resource existed this month, \(vat). Hetzner has no billing API, so credits and traffic overage are not included."
+        if summary.hasUserPrices {
+            text += " Servers marked your price use the monthly price you entered."
+        }
         if !summary.missing.isEmpty {
             text += " No price found for: \(summary.missing.joined(separator: ", "))."
         }
@@ -292,6 +297,7 @@ struct CostRow: Identifiable {
             var meta = [server.serverType.name.uppercased()]
             if server.backupsEnabled { meta.append("backups") }
             if server.status == .off { meta.append("off") }
+            if own.contains(where: \.userPrice) { meta.append("your price") }
             rows.append(CostRow(id: "server\(server.id)", name: server.name, meta: meta.joined(separator: " · "),
                                 monthToDate: own.reduce(0) { $0 + $1.monthToDate }, serverID: server.id, projectID: project))
         }

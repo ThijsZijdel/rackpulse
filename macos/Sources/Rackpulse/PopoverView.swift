@@ -37,6 +37,10 @@ struct PopoverView: View {
         actions.screenHeight - 70
     }
 
+    private var showsCosts: Bool {
+        monitor.settings.value.showsCosts
+    }
+
     private var showsFooter: Bool {
         !monitor.locked && !store.projects.isEmpty && !adding
     }
@@ -67,7 +71,7 @@ struct PopoverView: View {
             guard let route = actions.route else { return }
             switch route {
             case .servers: tab = .servers; detail = nil; adding = false
-            case .costs: tab = .costs; detail = nil; adding = false
+            case .costs: tab = showsCosts ? .costs : .servers; detail = nil; adding = false
             case .server(let project, let id, let range): detail = DetailTarget(project: project, server: id, range: range); adding = false
             case .agent(let project, let id): detail = DetailTarget(project: project, server: id, agent: true); adding = false
             case .serverTab(let project, let id, let tab): detail = DetailTarget(project: project, server: id, tab: tab); adding = false
@@ -103,15 +107,17 @@ struct PopoverView: View {
                 }
             } else {
                 header
-                SegmentedControl(selection: $tab, options: Tab.allCases.map { ($0, $0.rawValue) })
-                    .padding(.horizontal, 16)
+                if showsCosts {
+                    SegmentedControl(selection: $tab, options: Tab.allCases.map { ($0, $0.rawValue) })
+                        .padding(.horizontal, 16)
+                }
                 if let problem = monitor.problem {
                     ProblemBanner(text: problem) { monitor.refreshNow() }
                 }
                 if query.isEmpty {
                     FleetHeadline(monitor: monitor, store: store, open: openAlert)
                 }
-                switch tab {
+                switch showsCosts ? tab : .servers {
                 case .servers:
                     if !query.isEmpty { searchBar }
                     ServerList(monitor: monitor, store: store, query: query, highlighted: highlightedTarget) {
@@ -217,7 +223,7 @@ struct PopoverView: View {
                 Button("") { monitor.refreshNow() }.keyboardShortcut("r")
                 Button("") { adding = true }.keyboardShortcut("n")
                 Button("") { tab = .servers; detail = nil }.keyboardShortcut("1")
-                Button("") { tab = .costs; detail = nil }.keyboardShortcut("2")
+                Button("") { if showsCosts { tab = .costs; detail = nil } }.keyboardShortcut("2")
             }
             .frame(width: 0, height: 0)
             .opacity(0)

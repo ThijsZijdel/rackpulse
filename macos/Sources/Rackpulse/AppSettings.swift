@@ -23,6 +23,7 @@ struct AppSettings: Codable, Equatable {
     var pollInterval: TimeInterval = 60
     var alerts = AlertSettings()
     var priceKind: PriceKind = .net
+    var showsCosts = true
     var lockWithTouchID = false
     var readout: MenuBarReadout = .none
     var chartRange: MetricRange = .hour
@@ -30,11 +31,13 @@ struct AppSettings: Codable, Equatable {
     var compactList = true
     var serverAlerts: [String: ServerAlertOverride] = [:]
     var serverEnvironments: [String: ServerEnvironment] = [:]
+    var serverPrices: [String: Decimal] = [:]
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case pollInterval, alerts, priceKind, lockWithTouchID, serverAlerts, readout, chartRange, shortcut, compactList, serverEnvironments
+        case pollInterval, alerts, priceKind, showsCosts, lockWithTouchID, serverAlerts, readout, chartRange, shortcut, compactList
+        case serverEnvironments, serverPrices
     }
 
     static func key(project: UUID, server: Int64) -> String {
@@ -46,6 +49,7 @@ struct AppSettings: Codable, Equatable {
         pollInterval = (try? container.decode(TimeInterval.self, forKey: .pollInterval)) ?? 60
         alerts = (try? container.decode(AlertSettings.self, forKey: .alerts)) ?? AlertSettings()
         priceKind = (try? container.decode(PriceKind.self, forKey: .priceKind)) ?? .net
+        showsCosts = (try? container.decode(Bool.self, forKey: .showsCosts)) ?? true
         lockWithTouchID = (try? container.decode(Bool.self, forKey: .lockWithTouchID)) ?? false
         readout = (try? container.decode(MenuBarReadout.self, forKey: .readout)) ?? .none
         chartRange = (try? container.decode(MetricRange.self, forKey: .chartRange)) ?? .hour
@@ -53,6 +57,7 @@ struct AppSettings: Codable, Equatable {
         compactList = (try? container.decode(Bool.self, forKey: .compactList)) ?? true
         serverAlerts = (try? container.decode([String: ServerAlertOverride].self, forKey: .serverAlerts)) ?? [:]
         serverEnvironments = (try? container.decode([String: ServerEnvironment].self, forKey: .serverEnvironments)) ?? [:]
+        serverPrices = (try? container.decode([String: Decimal].self, forKey: .serverPrices)) ?? [:]
         for rule in RuleConfig.defaults where !alerts.rules.contains(where: { $0.kind == rule.kind }) {
             alerts.rules.append(rule)
         }
@@ -60,12 +65,25 @@ struct AppSettings: Codable, Equatable {
 
     func alertSettings(for project: Project) -> AlertSettings {
         var settings = alerts
-        settings.budget = project.budget
-        let prefix = "\(project.id.uuidString):"
-        for (key, override) in serverAlerts where key.hasPrefix(prefix) {
-            if let id = Int64(key.dropFirst(prefix.count)) { settings.servers[id] = override }
+        settings.budget = showsCosts ? project.budget : nil
+        if !showsCosts, let index = settings.rules.firstIndex(where: { $0.kind == .budget }) {
+            settings.rules[index].enabled = false
         }
+        for (id, override) in Self.servers(serverAlerts, project: project.id) { settings.servers[id] = override }
         return settings
+    }
+
+    func serverPrices(for project: UUID) -> [Int64: Decimal] {
+        Self.servers(serverPrices, project: project)
+    }
+
+    private static func servers<Value>(_ values: [String: Value], project: UUID) -> [Int64: Value] {
+        let prefix = "\(project.uuidString):"
+        var result: [Int64: Value] = [:]
+        for (key, value) in values where key.hasPrefix(prefix) {
+            if let id = Int64(key.dropFirst(prefix.count)) { result[id] = value }
+        }
+        return result
     }
 }
 
@@ -99,6 +117,14 @@ final class SettingsStore {
     func setOverride(_ override: ServerAlertOverride, project: UUID, server: Int64) {
         let key = AppSettings.key(project: project, server: server)
         value.serverAlerts[key] = override.mode == .global ? nil : override
+    }
+
+    func price(project: UUID, server: Int64) -> Decimal? {
+        value.serverPrices[AppSettings.key(project: project, server: server)]
+    }
+
+    func setPrice(_ price: Decimal?, project: UUID, server: Int64) {
+        value.serverPrices[AppSettings.key(project: project, server: server)] = price.flatMap { $0 > 0 ? $0 : nil }
     }
 
     func environmentChoice(project: UUID, server: Int64) -> ServerEnvironment? {

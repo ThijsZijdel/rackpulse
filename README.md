@@ -30,7 +30,7 @@ Each server has charts for CPU, disk, and network, from the last hour to the las
 
 What each project costs so far this month, and what it will cost by the end of the month. Set a monthly budget per project to get an alert when the forecast goes over it. Servers that are stopped but still billed, and volumes or IPs that nothing uses, are listed separately.
 
-The numbers are estimates from Hetzner's list prices. Hetzner has no billing API, so VAT, credits, and extra traffic are not included.
+The numbers are estimates from Hetzner's list prices. Hetzner has no billing API, so VAT, credits, and extra traffic are not included. If a server is on an older price, enter the monthly price you pay on the project's page in Settings, or turn cost estimates off in General.
 
 ### Alerts
 
