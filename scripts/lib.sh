@@ -93,7 +93,7 @@ r2_setup() {
     fi
     echo "Using R2_TOKEN from .env"
   fi
-  endpoint=https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com/$R2_BUCKET/$prefix
+  endpoint=https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com/$R2_BUCKET${prefix:+/$prefix}
 }
 
 put() {

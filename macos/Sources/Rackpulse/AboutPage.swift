@@ -5,7 +5,7 @@ struct AboutPage: View {
     let updates: Updates
 
     private static let links: [(title: String, symbol: String, url: String)] = [
-        ("Website", "globe", "https://en3sis.com/tools/rackpulse"),
+        ("Website", "globe", "https://rackpulse.app"),
         ("Discord", "bubble.left.and.bubble.right.fill", "https://discord.gg/s4AzG5sc36"),
         ("X", "at", "https://x.com/en3sis"),
     ]

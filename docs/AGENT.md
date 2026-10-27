@@ -14,7 +14,7 @@ The agent is optional. Rackpulse works without it, using only the Hetzner API. I
 Open a server in Rackpulse, choose **Set up agent**, and run the command it shows as root on the server:
 
 ```bash
-curl -fsSL https://tools-cdn.en3sis.com/tools/rackpulse/agent/install.sh | sudo sh -s -- --pair rb1_...
+curl -fsSL https://rackpulse.app/agent/install.sh | sudo sh -s -- --pair rb1_...
 ```
 
 `--pair` is a key Rackpulse generated for this server. Options:
@@ -27,7 +27,7 @@ curl -fsSL https://tools-cdn.en3sis.com/tools/rackpulse/agent/install.sh | sudo 
 
 Running the script again without `--pair` updates the agent and keeps its key and settings.
 
-The script downloads the binary for the server's architecture from `tools-cdn.en3sis.com`, checks its SHA-256 checksum, and runs `rackpulse-agent install`, which:
+The script downloads the binary for the server's architecture from `rackpulse.app`, checks its SHA-256 checksum, and runs `rackpulse-agent install`, which:
 
 1. Copies itself to `/usr/local/bin/rackpulse-agent`.
 2. Creates the system user `rackpulse` and adds it to the `docker` group if Docker is installed.

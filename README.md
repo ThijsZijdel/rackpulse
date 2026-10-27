@@ -6,7 +6,7 @@ A menu bar app for Hetzner Cloud. Rackpulse shows your servers from all your pro
 
 It is free and open source, with no account and no telemetry. It needs macOS 14 or later.
 
-**[Download Rackpulse](https://tools-cdn.en3sis.com/tools/rackpulse/download/Rackpulse.dmg)** · [Website](https://en3sis.com/tools/rackpulse) · [Discord](https://discord.gg/s4AzG5sc36)
+**[Download Rackpulse](https://rackpulse.app/download/Rackpulse.dmg)** · [Website](https://rackpulse.app) · [Discord](https://discord.gg/s4AzG5sc36)
 
 <img src="assets/screenshot.png" alt="Rackpulse: the server list, a server page, the Docker tab, and a container page">
 
@@ -52,7 +52,7 @@ The agent only reads. It can't run commands or change anything on the server. To
 
 ## Install
 
-1. [Download Rackpulse](https://tools-cdn.en3sis.com/tools/rackpulse/download/Rackpulse.dmg), open it, and drag Rackpulse to Applications.
+1. [Download Rackpulse](https://rackpulse.app/download/Rackpulse.dmg), open it, and drag Rackpulse to Applications.
 2. In the [Hetzner Console](https://console.hetzner.com/projects), open a project, go to **Security**, then **API tokens**, and create a token. Choose **Read**, or **Read & Write** if you want to start and stop servers from Rackpulse.
 3. Click the Rackpulse icon in the menu bar, paste the token, and click **Verify and Save**. Add one token for each project.
 

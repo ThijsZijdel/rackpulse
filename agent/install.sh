@@ -2,7 +2,7 @@
 set -eu
 
 main() {
-  base=${RACKPULSE_AGENT_URL:-https://tools-cdn.en3sis.com/tools/rackpulse/agent}
+  base=${RACKPULSE_AGENT_URL:-https://rackpulse.app/agent}
 
   if [ "$(uname -s)" != "Linux" ]; then
     echo "The Rackpulse agent runs on Linux servers. Run this command on the server, not on this computer." >&2

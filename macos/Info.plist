@@ -27,7 +27,7 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://tools-cdn.en3sis.com/tools/rackpulse/appcast.xml</string>
+	<string>https://rackpulse.app/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>J8Gy08o+FVi1gDZtuE9MdPrwh4HOI1GNaLfhlAHAKbc=</string>
 </dict>

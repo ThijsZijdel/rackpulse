@@ -1,9 +1,10 @@
 #!/bin/bash
 source "$(dirname "$0")/lib.sh"
 
-require SITE_URL R2_PREFIX
+require SITE_URL
 site=$SITE_URL
-prefix=$R2_PREFIX
+prefix=${R2_PREFIX:-}
+prefix=${prefix%/}
 
 r2_check
 

@@ -29,8 +29,8 @@ make release BUMP=minor   # 0.2.1 -> 0.3.0
 | Signing identity | `.env`, `SIGN_ID` (git-ignored) | Copy `.env.example` to `.env`. No quotes around values |
 | Notary credentials | Login keychain, profile named in `.env` as `NOTARY_PROFILE` | `xcrun notarytool store-credentials <profile>` with the Apple ID, the team ID, and an app-specific password |
 | Sparkle update key | Login keychain, account named in `.env` as `SPARKLE_ACCOUNT`, with a copy in 1Password | See "Update key" |
-| Public download address | `.env`: `SITE_URL`, the public URL of the release folder, without a trailing slash | The feed and download links are built from it, for example `$SITE_URL/download/Rackpulse.dmg` |
-| R2 upload credentials | `.env`: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_PREFIX` (the folder in the bucket), `R2_TOKEN`, `R2_SECRET` | Cloudflare dashboard, R2, Manage API tokens, with Object Read & Write on the bucket. Copy the token value and the Secret Access Key |
+| Public download address | `.env`: `SITE_URL`, the public URL of the release files, without a trailing slash. Today `https://rackpulse.app` | The feed and download links are built from it, for example `$SITE_URL/download/Rackpulse.dmg`. The app's feed URL (`SUFeedURL` in `macos/Info.plist`) and the agent install URL (`AgentStore.installURL`, `agent/install.sh`) must match it |
+| R2 upload credentials | `.env`: `R2_ACCOUNT_ID`, `R2_BUCKET` (today `rackpulse-prod`, the same bucket as the website), `R2_PREFIX` (a folder in the bucket, empty for the bucket root), `R2_TOKEN`, `R2_SECRET` | Cloudflare dashboard, R2, Manage API tokens, with Object Read & Write on the bucket. Copy the token value and the Secret Access Key |
 | Tools | Homebrew | `create-dmg`, `rsvg-convert` |
 
 The upload signs requests with the R2 access key pair. The Access Key ID is the token's ID, so `make publish` asks Cloudflare for it with `R2_TOKEN`. To skip that call, set `R2_ACCESS_KEY_ID` as well.
@@ -68,7 +68,7 @@ The two notary steps take most of the time, usually 2 to 10 minutes each. If a s
 
 ## What goes to R2
 
-Bucket `R2_BUCKET`, folder `R2_PREFIX`, served at `SITE_URL`.
+Bucket `R2_BUCKET`, folder `R2_PREFIX` (empty means the bucket root), served at `SITE_URL`. The website is in the same bucket. Publishing the website never deletes `appcast.xml`, `download/` or `agent/`, and publishing a release never touches the website.
 
 | Path | Source | Cache |
 |---|---|---|
@@ -88,7 +88,7 @@ The Linux agent has its own version in `agent/VERSION` and ships separately from
 echo 0.2.2 > agent/VERSION
 make test-agent       # Go tests
 make agent            # build both binaries, SHA256SUMS and install.sh into dist/agent/<version>
-make publish-agent    # upload to R2 under $R2_PREFIX/agent
+make publish-agent    # upload to R2 under agent/ (inside R2_PREFIX when it is set)
 ```
 
 | Path | Cache |

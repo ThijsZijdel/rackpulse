@@ -8,7 +8,7 @@ Include what is affected (the app, the agent, or the install script), the versio
 
 ## Supported versions
 
-Only the latest release of the app and the agent gets security fixes. The app updates itself, and `curl -fsSL https://tools-cdn.en3sis.com/tools/rackpulse/agent/install.sh | sudo sh` updates the agent and keeps its key.
+Only the latest release of the app and the agent gets security fixes. The app updates itself, and `curl -fsSL https://rackpulse.app/agent/install.sh | sudo sh` updates the agent and keeps its key.
 
 ## Design
 
