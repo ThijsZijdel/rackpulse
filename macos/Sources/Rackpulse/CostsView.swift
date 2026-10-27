@@ -30,19 +30,57 @@ struct CostsView: View {
     let store: ProjectStore
     let openSettings: () -> Void
     let openServer: (UUID, Int64) -> Void
-    let selectProject: (UUID) -> Void
+    @Binding var focus: UUID?
 
     var body: some View {
-        if store.scope.count > 1 {
+        if let id = focus, store.scope.count > 1, let project = store.project(id) {
+            VStack(spacing: 0) {
+                backBar(project)
+                projectCosts(project)
+            }
+        } else if store.scope.count > 1 {
             allProjects
-        } else if let project = store.scope.first, let poller = monitor.poller(project.id),
-                  let report = monitor.costReport(for: project.id) {
+        } else if let project = store.scope.first {
+            projectCosts(project)
+        } else {
+            CostsPlaceholder()
+        }
+    }
+
+    @ViewBuilder
+    private func projectCosts(_ project: Project) -> some View {
+        if let poller = monitor.poller(project.id), let report = monitor.costReport(for: project.id) {
             let rows = CostRow.group(report, data: poller.data, project: project.id)
             content(CostSummary([report], budget: project.budget), rows: rows, title: "By resource",
                     empty: "Nothing billed in this project this month.", canSetBudget: true)
         } else {
             CostsPlaceholder()
         }
+    }
+
+    private func backBar(_ project: Project) -> some View {
+        HStack(spacing: 10) {
+            Button { focus = nil } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 7))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to all projects")
+            .keyboardShortcut("[", modifiers: .command)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(project.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                Text("Costs of this project. All projects stay selected.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .onExitCommand { focus = nil }
     }
 
     @ViewBuilder
@@ -77,7 +115,7 @@ struct CostsView: View {
                 let rowView = CostRowView(row: row, share: top > 0 ? fraction(row.monthToDate, of: top) : 0,
                                           currency: summary.currency, showsDivider: index < rows.count - 1)
                 if let project = row.project {
-                    Button { selectProject(project.id) } label: { rowView.contentShape(Rectangle()) }
+                    Button { focus = project.id } label: { rowView.contentShape(Rectangle()) }
                         .buttonStyle(RowButtonStyle())
                         .help("Show \(row.name)")
                 } else if let id = row.serverID, let project = row.projectID {

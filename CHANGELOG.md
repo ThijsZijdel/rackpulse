@@ -4,7 +4,7 @@
 
 ### App
 
-- Enter the monthly price you pay for a server that is still on an older Hetzner price. Rackpulse then uses it for the month's cost, the forecast, and the budget alert. Set it in Settings, on the project's page, under Server prices. A server page shows whether its cost comes from the list price or from your price.
+- Enter the monthly price you pay for a server that is still on an older Hetzner price. Rackpulse then uses it for the month's cost, the forecast, and the budget alert. Set it in Settings, on the project's page, under Costs. A server page shows whether its cost comes from the list price or from your price.
 - A Show cost estimates switch in Settings, General. When it is off, Rackpulse hides the Costs tab and all cost amounts, and stops budget alerts.
 - Updates and downloads now come from rackpulse.app. Older versions keep updating through a redirect.
 

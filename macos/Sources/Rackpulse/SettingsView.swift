@@ -438,44 +438,39 @@ private struct ServerEnvironmentsSection: View {
     }
 }
 
-private struct ServerPricesSection: View {
+private struct ServerPriceRow: View {
     let project: Project
-    let servers: [Server]
+    let server: Server
     let settings: SettingsStore
 
     var body: some View {
-        Section {
-            if servers.isEmpty {
-                Text("Servers appear here after the first poll.").foregroundStyle(.secondary)
-            }
-            ForEach(servers) { server in
-                HStack {
-                    TextField(value: Binding(
-                        get: { settings.price(project: project.id, server: server.id) },
-                        set: { settings.setPrice($0, project: project.id, server: server.id) }
-                    ), format: .number.precision(.fractionLength(0...2)), prompt: Text(listPrice(server))) {
-                        Label(server.name, systemImage: "server.rack")
-                    }
-                    if settings.price(project: project.id, server: server.id) != nil {
-                        Button {
-                            settings.setPrice(nil, project: project.id, server: server.id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Use the list price")
-                    }
+        let price = settings.price(project: project.id, server: server.id)
+        LabeledContent {
+            HStack(spacing: 6) {
+                TextField("Monthly price", value: Binding(
+                    get: { price },
+                    set: { settings.setPrice($0, project: project.id, server: server.id) }
+                ), format: .number.precision(.fractionLength(0...2)), prompt: Text(listPrice))
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+                Text("a month").foregroundStyle(.secondary)
+                Button {
+                    settings.setPrice(nil, project: project.id, server: server.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
+                .buttonStyle(.borderless)
+                .help("Use the list price")
+                .opacity(price == nil ? 0 : 1)
+                .disabled(price == nil)
             }
-        } header: {
-            Text("Server prices")
-        } footer: {
-            Text("Enter the monthly price you pay, without VAT, for a server that is not on Hetzner's current list price. Rackpulse uses it for costs, the forecast and the budget alert. Leave empty to use the list price, shown in grey.")
-                .foregroundStyle(.secondary)
+        } label: {
+            Label(server.name, systemImage: "server.rack")
         }
     }
 
-    private func listPrice(_ server: Server) -> String {
+    private var listPrice: String {
         guard let price = server.serverType.prices.price(at: server.location.name)?.priceMonthly.net else { return "List price" }
         return price.formatted(.number.precision(.fractionLength(2)))
     }
@@ -615,23 +610,24 @@ private struct ProjectForm: View {
                 .font(.headline)
             }
 
-            if settings.value.showsCosts {
-                Section {
+            Section {
+                if settings.value.showsCosts {
                     TextField("Monthly budget", value: Binding(
                         get: { project.budget },
                         set: { value in store.update(project.id) { $0.budget = value.flatMap { $0 > 0 ? $0 : nil } } }
                     ), format: .number.precision(.fractionLength(0...2)), prompt: Text("None"))
-                } header: {
-                    Text("Costs")
-                } footer: {
-                    Text("Rackpulse shows this on the Costs tab and alerts you when the month's forecast goes above it. Amounts are in the currency of your Hetzner prices, without VAT.")
-                        .foregroundStyle(.secondary)
-                }
-
-                ServerPricesSection(project: project, servers: servers, settings: settings)
-            } else {
-                Section("Costs") {
+                    ForEach(servers) { server in
+                        ServerPriceRow(project: project, server: server, settings: settings)
+                    }
+                } else {
                     Text("Cost estimates are off. Turn them on in General.").foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Costs")
+            } footer: {
+                if settings.value.showsCosts {
+                    Text("Rackpulse shows the budget on the Costs tab and alerts you when the month's forecast goes above it. For a server on an older price, enter the monthly price you pay. Leave it empty to use the list price, shown in grey. Amounts are in the currency of your Hetzner prices, without VAT.")
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -670,7 +666,14 @@ private struct ProjectForm: View {
             }
 
             Section {
-                Button("Remove Project…", role: .destructive, action: remove)
+                Button(role: .destructive, action: remove) {
+                    Text("Remove Project…").foregroundStyle(Theme.red)
+                }
+            } header: {
+                Text("Remove project")
+            } footer: {
+                Text("Rackpulse stops watching this project and deletes its token from your Keychain. The project on Hetzner is not changed.")
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

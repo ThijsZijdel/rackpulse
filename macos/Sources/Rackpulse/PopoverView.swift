@@ -19,6 +19,7 @@ struct PopoverView: View {
     @Environment(AppActions.self) private var actions
     @State private var detail: DetailTarget?
     @State private var tab = Tab.servers
+    @State private var costProject: UUID?
     @State private var switcherFrame: CGRect = .zero
     @State private var mainHeight: CGFloat = 0
     @State private var query = ""
@@ -67,6 +68,9 @@ struct PopoverView: View {
         .onAppear { keyboard = true }
         .monospacedDigit()
         .onAppear { monitor.refreshIfStale() }
+        .onChange(of: tab) { if tab != .costs { costProject = nil } }
+        .onChange(of: store.showsAll) { costProject = nil }
+        .onChange(of: actions.opened) { costProject = nil }
         .onChange(of: actions.route) {
             guard let route = actions.route else { return }
             switch route {
@@ -127,7 +131,7 @@ struct PopoverView: View {
                 case .costs:
                     CostsView(monitor: monitor, store: store, openSettings: openSettings,
                               openServer: { detail = DetailTarget(project: $0, server: $1) },
-                              selectProject: select)
+                              focus: $costProject)
                 }
             }
         }

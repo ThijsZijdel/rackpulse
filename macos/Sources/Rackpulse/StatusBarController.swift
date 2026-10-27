@@ -11,6 +11,7 @@ final class AppActions {
     var route: PanelRoute?
     var screenHeight: CGFloat = 800
     var chartRange: MetricRange?
+    var opened = 0
     var shortcutChanged: () -> Void = {}
 }
 
@@ -112,6 +113,7 @@ final class StatusBarController: NSObject {
         guard let frame = placement(height: height) else { return }
         panel.setFrame(frame, display: true)
         layoutContent()
+        actions.opened += 1
         panel.makeKeyAndOrderFront(nil)
         item.button?.highlight(true)
         DispatchQueue.main.async { [weak self] in self?.keepHighlight() }
